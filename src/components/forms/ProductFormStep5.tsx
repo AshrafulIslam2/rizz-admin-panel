@@ -77,25 +77,12 @@ export function ProductFormStep5({
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pricingMode, setPricingMode] = useState<"simple" | "variant">(
-    "variant"
-  );
 
   const form = useForm<CreateProductStep5FormData>({
     resolver: zodResolver(createProductStep5Schema),
     defaultValues: {
-      pricing: initialData?.pricing || [],
       variantPricing: initialData?.variantPricing || [],
     },
-  });
-
-  const {
-    fields: simplePricingFields,
-    append: appendSimplePricing,
-    remove: removeSimplePricing,
-  } = useFieldArray({
-    control: form.control,
-    name: "pricing",
   });
 
   const {
@@ -129,7 +116,6 @@ export function ProductFormStep5({
   }, [productId]);
 
   const watchedVariantPricing = form.watch("variantPricing");
-  const watchedSimplePricing = form.watch("pricing");
 
   // Get color and size names for display
   const getColorName = (colorId: number): string => {
@@ -238,7 +224,8 @@ export function ProductFormStep5({
         </CardTitle>
         <CardDescription>
           Set up pricing for your product variants. Create different price
-          points for different color + size combinations and quantity ranges.
+          points for different color + size combinations with quantity-based
+          pricing tiers.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -247,494 +234,314 @@ export function ProductFormStep5({
             onSubmit={form.handleSubmit(handleFormSubmit)}
             className="space-y-6"
           >
-            {/* Pricing Mode Selection */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Button
-                  type="button"
-                  variant={pricingMode === "simple" ? "default" : "outline"}
-                  onClick={() => setPricingMode("simple")}
-                >
-                  Simple Pricing
-                </Button>
-                <Button
-                  type="button"
-                  variant={pricingMode === "variant" ? "default" : "outline"}
-                  onClick={() => setPricingMode("variant")}
-                >
-                  Variant Pricing
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {pricingMode === "simple"
-                  ? "Set quantity-based pricing tiers for all variants"
-                  : "Set different pricing for each color + size combination"}
-              </p>
-            </div>
-
-            {pricingMode === "variant" ? (
-              <div className="space-y-6">
-                {/* Variant Selection */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-medium">
-                        Variant Combinations
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Select color + size combinations to set pricing for
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Variant Grid for Selection */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {colors.map((productColor) =>
-                      sizes.map((productSize) => (
-                        <Card
-                          key={`${productColor.color.id}-${productSize.size.id}`}
-                          className={`cursor-pointer transition-colors ${
-                            variantExists(
-                              productColor.color.id,
-                              productSize.size.id
-                            )
-                              ? "bg-primary/10 border-primary"
-                              : "hover:bg-muted"
-                          }`}
-                          onClick={() =>
-                            addVariantPricing(
-                              productColor.color.id,
-                              productSize.size.id
-                            )
-                          }
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <Palette className="h-4 w-4" />
-                                <span
-                                  className="w-4 h-4 rounded-full border"
-                                  style={{
-                                    backgroundColor:
-                                      productColor.color.hexCode || "#ccc",
-                                  }}
-                                />
-                                <span className="font-medium">
-                                  {productColor.color.name}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Ruler className="h-4 w-4" />
-                                <span>{productSize.size.value}</span>
-                              </div>
-                            </div>
-                            {variantExists(
-                              productColor.color.id,
-                              productSize.size.id
-                            ) && (
-                              <Badge className="mt-2" variant="secondary">
-                                Pricing Set
-                              </Badge>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Variant Pricing Configuration */}
-                {variantPricingFields.map((variantField, variantIndex) => {
-                  const variant = watchedVariantPricing?.[variantIndex];
-                  if (!variant) return null;
-
-                  return (
-                    <Card key={variantField.id} className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                          <h4 className="font-medium text-lg">
-                            {getColorName(variant.colorId)} -{" "}
-                            {getSizeName(variant.sizeId)}
-                          </h4>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-4 h-4 rounded-full border"
-                              style={{
-                                backgroundColor:
-                                  colors.find(
-                                    (c) => c.color.id === variant.colorId
-                                  )?.color.hexCode || "#ccc",
-                              }}
-                            />
-                            <Badge variant="outline">
-                              {getSizeName(variant.sizeId)}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              addPricingTierToVariant(variantIndex)
-                            }
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Tier
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeVariantPricing(variantIndex)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Pricing Tiers for this variant */}
-                      <div className="space-y-4">
-                        {variant.pricingTiers?.map((tier, tierIndex) => (
-                          <div
-                            key={tierIndex}
-                            className="border rounded-lg p-4 bg-muted/50"
-                          >
-                            <div className="flex items-center justify-between mb-4">
-                              <h5 className="font-medium">
-                                Tier {tierIndex + 1}
-                              </h5>
-                              {variant.pricingTiers &&
-                                variant.pricingTiers.length > 1 && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      removePricingTierFromVariant(
-                                        variantIndex,
-                                        tierIndex
-                                      )
-                                    }
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                              <FormField
-                                control={form.control}
-                                name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.min_quantity`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Min Quantity</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        placeholder="1"
-                                        {...field}
-                                        value={field.value || ""}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            parseInt(e.target.value) || 1
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.max_quantity`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Max Quantity</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        placeholder="2"
-                                        {...field}
-                                        value={field.value || ""}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            parseInt(e.target.value) || 1
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.unit_price`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Unit Price ($)</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        placeholder="0.00"
-                                        {...field}
-                                        value={field.value || ""}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            parseFloat(e.target.value) || 0
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.discount_percentage`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Discount (%)</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        placeholder="0"
-                                        {...field}
-                                        value={field.value || ""}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            parseFloat(e.target.value) || 0
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                    <FormDescription>
-                                      Optional bulk discount percentage
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-
-                            {/* Tier Summary */}
-                            {tier.unit_price > 0 && (
-                              <div className="mt-4 p-3 bg-background rounded-lg border">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Calculator className="h-4 w-4" />
-                                  <span className="font-medium">
-                                    Price Summary
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Range:
-                                    </span>
-                                    <br />
-                                    <span className="font-medium">
-                                      {tier.min_quantity} - {tier.max_quantity}{" "}
-                                      units
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Unit Price:
-                                    </span>
-                                    <br />
-                                    <span className="font-medium">
-                                      ${tier.unit_price.toFixed(2)}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Total (Max Qty):
-                                    </span>
-                                    <br />
-                                    <span className="font-medium text-green-600">
-                                      $
-                                      {calculateTierPrice(
-                                        tier,
-                                        tier.max_quantity
-                                      ).toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              /* Simple Pricing Mode - keeping the original logic */
+            {/* Variant Pricing */}
+            <div className="space-y-6">
+              {/* Variant Selection */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-medium">
-                      Simple Pricing Tiers
+                      Variant Combinations
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Define quantity ranges and their corresponding prices for
-                      all variants
+                      Select color + size combinations to set pricing for
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      appendSimplePricing({
-                        min_quantity: 1,
-                        max_quantity: 2,
-                        unit_price: 0,
-                        discount_percentage: 0,
-                      })
-                    }
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Tier
-                  </Button>
                 </div>
 
-                {simplePricingFields.map((field, index) => (
-                  <Card key={field.id} className="p-4">
+                {/* Variant Grid for Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {colors.map((productColor) =>
+                    sizes.map((productSize) => (
+                      <Card
+                        key={`${productColor.color.id}-${productSize.size.id}`}
+                        className={`cursor-pointer transition-colors ${
+                          variantExists(
+                            productColor.color.id,
+                            productSize.size.id
+                          )
+                            ? "bg-primary/10 border-primary"
+                            : "hover:bg-muted"
+                        }`}
+                        onClick={() =>
+                          addVariantPricing(
+                            productColor.color.id,
+                            productSize.size.id
+                          )
+                        }
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Palette className="h-4 w-4" />
+                              <span
+                                className="w-4 h-4 rounded-full border"
+                                style={{
+                                  backgroundColor:
+                                    productColor.color.hexCode || "#ccc",
+                                }}
+                              />
+                              <span className="font-medium">
+                                {productColor.color.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Ruler className="h-4 w-4" />
+                              <span>{productSize.size.value}</span>
+                            </div>
+                          </div>
+                          {variantExists(
+                            productColor.color.id,
+                            productSize.size.id
+                          ) && (
+                            <Badge className="mt-2" variant="secondary">
+                              Pricing Set
+                            </Badge>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Variant Pricing Configuration */}
+              {variantPricingFields.map((variantField, variantIndex) => {
+                const variant = watchedVariantPricing?.[variantIndex];
+                if (!variant) return null;
+
+                return (
+                  <Card key={variantField.id} className="p-4">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-medium">Tier {index + 1}</h4>
-                      {simplePricingFields.length > 1 && (
+                      <div className="flex items-center gap-4">
+                        <h4 className="font-medium text-lg">
+                          {getColorName(variant.colorId)} -{" "}
+                          {getSizeName(variant.sizeId)}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-4 h-4 rounded-full border"
+                            style={{
+                              backgroundColor:
+                                colors.find(
+                                  (c) => c.color.id === variant.colorId
+                                )?.color.hexCode || "#ccc",
+                            }}
+                          />
+                          <Badge variant="outline">
+                            {getSizeName(variant.sizeId)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => removeSimplePricing(index)}
+                          onClick={() => addPricingTierToVariant(variantIndex)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Tier
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeVariantPricing(variantIndex)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <FormField
-                        control={form.control}
-                        name={`pricing.${index}.min_quantity`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min Quantity</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                placeholder="1"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(parseInt(e.target.value) || 1)
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    {/* Pricing Tiers for this variant */}
+                    <div className="space-y-4">
+                      {variant.pricingTiers?.map((tier, tierIndex) => (
+                        <div
+                          key={tierIndex}
+                          className="border rounded-lg p-4 bg-muted/50"
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h5 className="font-medium">
+                              Tier {tierIndex + 1}
+                            </h5>
+                            {variant.pricingTiers &&
+                              variant.pricingTiers.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    removePricingTierFromVariant(
+                                      variantIndex,
+                                      tierIndex
+                                    )
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                          </div>
 
-                      <FormField
-                        control={form.control}
-                        name={`pricing.${index}.max_quantity`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Quantity</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                placeholder="2"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(parseInt(e.target.value) || 1)
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.min_quantity`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Min Quantity</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      placeholder="1"
+                                      {...field}
+                                      value={field.value || ""}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseInt(e.target.value) || 1
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
 
-                      <FormField
-                        control={form.control}
-                        name={`pricing.${index}.unit_price`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Unit Price ($)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                            <FormField
+                              control={form.control}
+                              name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.max_quantity`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Max Quantity</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      placeholder="2"
+                                      {...field}
+                                      value={field.value || ""}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseInt(e.target.value) || 1
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
 
-                      <FormField
-                        control={form.control}
-                        name={`pricing.${index}.discount_percentage`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Discount (%)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                placeholder="0"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Optional bulk discount percentage
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                            <FormField
+                              control={form.control}
+                              name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.unit_price`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Unit Price ($)</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="0.00"
+                                      {...field}
+                                      value={field.value || ""}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseFloat(e.target.value) || 0
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name={`variantPricing.${variantIndex}.pricingTiers.${tierIndex}.discount_percentage`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Discount (%)</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      placeholder="0"
+                                      {...field}
+                                      value={field.value || ""}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseFloat(e.target.value) || 0
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    Optional bulk discount percentage
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          {/* Tier Summary */}
+                          {tier.unit_price > 0 && (
+                            <div className="mt-4 p-3 bg-background rounded-lg border">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Calculator className="h-4 w-4" />
+                                <span className="font-medium">
+                                  Price Summary
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Range:
+                                  </span>
+                                  <br />
+                                  <span className="font-medium">
+                                    {tier.min_quantity} - {tier.max_quantity}{" "}
+                                    units
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Unit Price:
+                                  </span>
+                                  <br />
+                                  <span className="font-medium">
+                                    ${tier.unit_price.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Total (Max Qty):
+                                  </span>
+                                  <br />
+                                  <span className="font-medium text-green-600">
+                                    $
+                                    {calculateTierPrice(
+                                      tier,
+                                      tier.max_quantity
+                                    ).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </Card>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
 
             <div className="flex justify-between">
               <Button type="button" variant="outline" onClick={onPrevious}>
@@ -743,13 +550,10 @@ export function ProductFormStep5({
               <Button
                 type="submit"
                 disabled={
-                  pricingMode === "variant"
-                    ? !watchedVariantPricing?.length ||
-                      !watchedVariantPricing.some((v) =>
-                        v.pricingTiers?.some((t) => t.unit_price > 0)
-                      )
-                    : !watchedSimplePricing?.length ||
-                      !watchedSimplePricing.some((t) => t.unit_price > 0)
+                  !watchedVariantPricing?.length ||
+                  !watchedVariantPricing.some((v) =>
+                    v.pricingTiers?.some((t) => t.unit_price > 0)
+                  )
                 }
               >
                 Next: Upload Images
