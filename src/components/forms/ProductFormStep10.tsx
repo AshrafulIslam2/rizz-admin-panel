@@ -2,6 +2,14 @@
 
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+interface ProductFormStep10Props {
+  initialData?: CreateProductStep10FormData;
+  productId: number;
+  onComplete: (data: CreateProductStep10FormData, productId: number) => void;
+  onNext: () => void;
+  onPrevious: () => void;
+}
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,17 +42,11 @@ import {
   CreateProductStep10FormData,
 } from "@/types/validation";
 
-interface ProductFormStep10Props {
-  initialData?: CreateProductStep10FormData;
-  onComplete: (data: CreateProductStep10FormData) => void;
-  onSubmit: () => void;
-  onPrevious: () => void;
-}
-
 export function ProductFormStep10({
   initialData,
+  productId,
   onComplete,
-  onSubmit,
+  onNext,
   onPrevious,
 }: ProductFormStep10Props) {
   const form = useForm<CreateProductStep10FormData>({
@@ -65,8 +67,8 @@ export function ProductFormStep10({
   });
 
   const handleFormSubmit = (data: CreateProductStep10FormData) => {
-    onComplete(data);
-    onSubmit();
+    onComplete(data, productId);
+    onNext();
   };
 
   const addFaq = () => {

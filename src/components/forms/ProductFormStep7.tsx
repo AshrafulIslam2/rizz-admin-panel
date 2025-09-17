@@ -40,13 +40,15 @@ import {
 
 interface ProductFormStep7Props {
   initialData?: CreateProductStep7FormData;
-  onComplete: (data: CreateProductStep7FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep7FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
 
 export function ProductFormStep7({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -83,7 +85,7 @@ export function ProductFormStep7({
   });
 
   const handleFormSubmit = (data: CreateProductStep7FormData) => {
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 

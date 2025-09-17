@@ -1,3 +1,27 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+// Helper function to format date
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+// Helper function to calculate total stock from all sizes
+const calculateTotalStock = (product: Product) => {
+  if (!product.product_size || product.product_size.length === 0) {
+    return 0;
+  }
+
+  return product.product_size.reduce((total: number, sizeEntry: any) => {
+    return total + (sizeEntry.quantity || 0);
+  }, 0);
+};
+
 import {
   Card,
   CardContent,
@@ -16,50 +40,73 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Filter, Edit, Trash2, Eye } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  Eye,
+  RefreshCw,
+} from "lucide-react";
 import Link from "next/link";
-
-// Mock data for demonstration
-const products = [
-  {
-    id: 1,
-    title: "Premium T-Shirt",
-    sku: "TS001",
-    basePrice: 29.99,
-    discountedPrice: 24.99,
-    stock: 150,
-    published: true,
-    categories: ["Clothing", "T-Shirts"],
-    colors: ["Red", "Blue", "White"],
-    sizes: ["S", "M", "L", "XL"],
-  },
-  {
-    id: 2,
-    title: "Denim Jeans",
-    sku: "DJ002",
-    basePrice: 89.99,
-    discountedPrice: null,
-    stock: 75,
-    published: true,
-    categories: ["Clothing", "Jeans"],
-    colors: ["Blue", "Black"],
-    sizes: ["28", "30", "32", "34", "36"],
-  },
-  {
-    id: 3,
-    title: "Running Shoes",
-    sku: "RS003",
-    basePrice: 129.99,
-    discountedPrice: 99.99,
-    stock: 50,
-    published: false,
-    categories: ["Footwear", "Sports"],
-    colors: ["Black", "White", "Gray"],
-    sizes: ["7", "8", "9", "10", "11"],
-  },
-];
+import { productApi, Product } from "@/lib/api/products";
 
 export default function ProductListPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch products on component mount
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const productsData = await productApi.findAll();
+      setProducts(productsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch products");
+      console.error("Error fetching products:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 space-y-4 p-4 pt-6">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 space-y-4 p-4 pt-6">
+        <Card>
+          <CardContent className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-destructive mb-2">Error loading products</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
       <div className="flex items-center justify-between">
@@ -70,6 +117,16 @@ export default function ProductListPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            onClick={fetchProducts}
+            disabled={isLoading}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
           <Button asChild>
             <Link href="/products/add">
               <Plus className="mr-2 h-4 w-4" />
@@ -107,7 +164,7 @@ export default function ProductListPage() {
                   <TableHead>Product</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
+                  <TableHead>Inventory</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Categories</TableHead>
                   <TableHead>Variants</TableHead>
@@ -121,7 +178,8 @@ export default function ProductListPage() {
                       <div>
                         <div className="font-medium">{product.title}</div>
                         <div className="text-sm text-muted-foreground">
-                          ID: {product.id}
+                          ID: {product.id} • Created:{" "}
+                          {formatDate(product.createdAt)}
                         </div>
                       </div>
                     </TableCell>
@@ -151,14 +209,14 @@ export default function ProductListPage() {
                     <TableCell>
                       <Badge
                         variant={
-                          product.stock > 50
+                          calculateTotalStock(product) > 50
                             ? "default"
-                            : product.stock > 0
+                            : calculateTotalStock(product) > 0
                             ? "secondary"
                             : "destructive"
                         }
                       >
-                        {product.stock} in stock
+                        {calculateTotalStock(product)} in stock
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -170,21 +228,30 @@ export default function ProductListPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
-                        {product.categories.map((category, index) => (
-                          <Badge
-                            key={index}
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {category}
+                        {product.product_categories &&
+                        product.product_categories.length > 0 ? (
+                          product.product_categories.map(
+                            (category: any, index: number) => (
+                              <Badge
+                                key={index}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {category.name || "Category"}
+                              </Badge>
+                            )
+                          )
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            No categories
                           </Badge>
-                        ))}
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm text-muted-foreground">
-                        <div>{product.colors.length} colors</div>
-                        <div>{product.sizes.length} sizes</div>
+                        <div>{product.product_colors?.length || 0} colors</div>
+                        <div>{product.product_size?.length || 0} sizes</div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

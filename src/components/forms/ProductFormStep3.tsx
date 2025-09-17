@@ -39,83 +39,34 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, FolderTree, Tag } from "lucide-react";
+import { Plus, FolderTree, Tag, Loader2 } from "lucide-react";
 import {
   createProductStep3Schema,
   CreateProductStep3FormData,
   categorySchema,
 } from "@/types/validation";
-import type { Category } from "@/types/product";
+import type { Category, CreateCategoryDto } from "@/types/product";
+import { categoriesApi } from "@/lib/api/categories";
 
 interface ProductFormStep3Props {
   initialData?: CreateProductStep3FormData;
-  onComplete: (data: CreateProductStep3FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep3FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
 
-// Mock categories data - in real app, this would come from an API
-const mockCategories: Category[] = [
-  {
-    id: 1,
-    name: "Electronics",
-    parentId: undefined,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 2,
-    name: "Smartphones",
-    parentId: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 3,
-    name: "Laptops",
-    parentId: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 4,
-    name: "Clothing",
-    parentId: undefined,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 5,
-    name: "Men's Clothing",
-    parentId: 4,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 6,
-    name: "Women's Clothing",
-    parentId: 4,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 7,
-    name: "Home & Garden",
-    parentId: undefined,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
-
 export function ProductFormStep3({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
 }: ProductFormStep3Props) {
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   const form = useForm<CreateProductStep3FormData>({
     resolver: zodResolver(createProductStep3Schema),
@@ -125,13 +76,31 @@ export function ProductFormStep3({
     },
   });
 
-  const newCategoryForm = useForm({
+  const newCategoryForm = useForm<CreateCategoryDto>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: "",
       parentId: undefined,
     },
   });
+
+  // Load categories from API on mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setIsLoadingCategories(true);
+        const fetchedCategories = await categoriesApi.findAll();
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        // Show error message to user
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   // Group categories by hierarchy
   const rootCategories = categories.filter((cat) => !cat.parentId);
@@ -146,21 +115,13 @@ export function ProductFormStep3({
       : category.name;
   };
 
-  const handleCreateCategory = async (data: {
-    name: string;
-    parentId?: number;
-  }) => {
+  const handleCreateCategory = async (data: CreateCategoryDto) => {
     setIsLoading(true);
     try {
-      // In real app, this would be an API call
-      const newCategory: Category = {
-        id: Math.max(...categories.map((c) => c.id)) + 1,
-        name: data.name,
-        parentId: data.parentId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      // Call the API to create the category
+      const newCategory = await categoriesApi.create(data);
 
+      // Add the new category to the local state
       setCategories((prev) => [...prev, newCategory]);
       setIsCreateDialogOpen(false);
       newCategoryForm.reset();
@@ -170,6 +131,7 @@ export function ProductFormStep3({
       form.setValue("selectedCategories", [...currentSelected, newCategory.id]);
     } catch (error) {
       console.error("Failed to create category:", error);
+      // In a real app, you'd show an error toast/notification here
     } finally {
       setIsLoading(false);
     }
@@ -188,7 +150,7 @@ export function ProductFormStep3({
   };
 
   const onSubmit = (data: CreateProductStep3FormData) => {
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 
@@ -259,10 +221,10 @@ export function ProductFormStep3({
                             <Select
                               onValueChange={(value) =>
                                 field.onChange(
-                                  value ? parseInt(value) : undefined
+                                  value === "none" ? undefined : parseInt(value)
                                 )
                               }
-                              value={field.value?.toString()}
+                              value={field.value?.toString() || "none"}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -298,6 +260,7 @@ export function ProductFormStep3({
                       type="button"
                       variant="outline"
                       onClick={() => setIsCreateDialogOpen(false)}
+                      disabled={isLoading}
                     >
                       Cancel
                     </Button>
@@ -308,7 +271,14 @@ export function ProductFormStep3({
                       )}
                       disabled={isLoading}
                     >
-                      {isLoading ? "Creating..." : "Create Category"}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create Category"
+                      )}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -327,7 +297,15 @@ export function ProductFormStep3({
                     product
                   </FormDescription>
 
-                  {categories.length === 0 ? (
+                  {isLoadingCategories ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-12 w-12 mx-auto mb-4 opacity-50 animate-spin" />
+                      <p className="text-lg font-medium mb-2">
+                        Loading categories...
+                      </p>
+                      <p>Please wait while we fetch available categories</p>
+                    </div>
+                  ) : categories.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium mb-2">

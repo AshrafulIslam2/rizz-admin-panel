@@ -31,7 +31,7 @@ import { productApi, transformStep1ToDto } from "@/lib/api/products";
 
 interface ProductFormStep1Props {
   initialData?: CreateProductStep1FormData;
-  onComplete: (data: CreateProductStep1FormData) => void;
+  onComplete: (data: CreateProductStep1FormData, productId: number) => void;
   onNext: () => void;
 }
 
@@ -55,7 +55,7 @@ export function ProductFormStep1({
       material: initialData?.material || "",
       dimensions: initialData?.dimensions || "",
       capacity: initialData?.capacity || "",
-      stock: initialData?.stock,
+      // stock: initialData?.stock,
       // barcode: initialData?.barcode || "",
       weight: initialData?.weight || "",
       published: initialData?.published ?? false,
@@ -75,7 +75,7 @@ export function ProductFormStep1({
       console.log("Product created successfully:", response);
 
       // Complete step and move to next
-      onComplete(data);
+      onComplete(data, response.id);
       onNext();
     } catch (error) {
       console.error("Error creating product:", error);
@@ -245,7 +245,7 @@ export function ProductFormStep1({
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="stock"
                 render={({ field }) => (
@@ -269,7 +269,7 @@ export function ProductFormStep1({
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

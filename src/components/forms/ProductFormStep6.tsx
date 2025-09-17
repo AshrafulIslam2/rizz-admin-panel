@@ -49,13 +49,15 @@ import {
 
 interface ProductFormStep6Props {
   initialData?: CreateProductStep6FormData;
-  onComplete: (data: CreateProductStep6FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep6FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
 
 export function ProductFormStep6({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -183,7 +185,7 @@ export function ProductFormStep6({
     // In a real app, you would upload images to cloud storage here
     // and replace the blob URLs with actual URLs
 
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 

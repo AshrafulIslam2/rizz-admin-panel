@@ -94,13 +94,26 @@ export function ProductFormWizard() {
     {}
   );
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [productId, setProductId] = useState<number | null>(null);
 
-  const handleStepComplete = (step: number, data: any) => {
+  const handleStepComplete = (
+    step: number,
+    data: any,
+    productIdFromStep?: number
+  ) => {
     setFormData((prev) => ({
       ...prev,
       [`step${step}`]: data,
     }));
     setCompletedSteps((prev) => new Set([...prev, step]));
+
+    // Store product ID from step 1, or maintain it from subsequent steps
+    if (step === 1 && productIdFromStep) {
+      setProductId(productIdFromStep);
+    } else if (step > 1 && productIdFromStep && !productId) {
+      // Fallback in case productId is somehow lost
+      setProductId(productIdFromStep);
+    }
   };
 
   const handleNext = () => {
@@ -117,6 +130,11 @@ export function ProductFormWizard() {
 
   const handleStepClick = (step: number) => {
     // Allow navigation to any step that's completed or the current step
+    // But for step 2 and beyond, require product ID from step 1
+    if (step >= 2 && !productId) {
+      return; // Prevent navigation without product ID
+    }
+
     if (completedSteps.has(step) || step <= currentStep) {
       setCurrentStep(step);
     }
@@ -140,88 +158,218 @@ export function ProductFormWizard() {
         return (
           <ProductFormStep1
             initialData={formData.step1}
-            onComplete={(data) => handleStepComplete(1, data)}
+            onComplete={(data, productId) =>
+              handleStepComplete(1, data, productId)
+            }
             onNext={handleNext}
           />
         );
       case 2:
+        // Prevent access to step 2 without product ID
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep2
             initialData={formData.step2}
-            onComplete={(data) => handleStepComplete(2, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(2, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 3:
+        // Prevent access to step 3 without product ID
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep3
             initialData={formData.step3}
-            onComplete={(data) => handleStepComplete(3, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(3, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 4:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep4
             initialData={formData.step4}
-            onComplete={(data) => handleStepComplete(4, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(4, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 5:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep5
             initialData={formData.step5}
-            onComplete={(data) => handleStepComplete(5, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(5, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 6:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep6
             initialData={formData.step6}
-            onComplete={(data) => handleStepComplete(6, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(6, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 7:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep7
             initialData={formData.step7}
-            onComplete={(data) => handleStepComplete(7, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(7, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 8:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep8
             initialData={formData.step8}
-            onComplete={(data) => handleStepComplete(8, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(8, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 9:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep9
             initialData={formData.step9}
-            onComplete={(data) => handleStepComplete(9, data)}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(9, data, productId)
+            }
             onNext={handleNext}
             onPrevious={handlePrevious}
           />
         );
       case 10:
+        if (!productId) {
+          return (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">
+                  Please complete step 1 first to create the product.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
         return (
           <ProductFormStep10
             initialData={formData.step10}
-            onComplete={(data) => handleStepComplete(10, data)}
-            onSubmit={handleSubmit}
+            productId={productId}
+            onComplete={(data, productId) =>
+              handleStepComplete(10, data, productId)
+            }
+            onNext={handleSubmit}
             onPrevious={handlePrevious}
           />
         );

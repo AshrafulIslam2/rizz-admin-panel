@@ -11,7 +11,7 @@ export const createProductStep1Schema = z.object({
     material: z.string().optional(),
     dimensions: z.string().optional(),
     capacity: z.string().optional(),
-    stock: z.number().min(0, "Stock must be 0 or greater").optional(),
+    // stock: z.number().min(0, "Stock must be 0 or greater").optional(),
     // barcode: z.string().optional(),
     weight: z.string().optional(),
     published: z.boolean(),

@@ -44,6 +44,7 @@ import {
 } from "@/types/validation";
 import { Size } from "@/types/product";
 import { sizesApi, CreateSizeDto } from "@/lib/api/sizes";
+import { productApi, BulkAddSizesToProductDto } from "@/lib/api/products";
 
 // Mock data for existing sizes
 const mockSizes: Size[] = [
@@ -121,13 +122,15 @@ const mockSizes: Size[] = [
 
 interface ProductFormStep2Props {
   initialData?: CreateProductStep2FormData;
-  onComplete: (data: CreateProductStep2FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep2FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
 
 export function ProductFormStep2Enhanced({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -135,6 +138,12 @@ export function ProductFormStep2Enhanced({
   const [sizes, setSizes] = useState<Size[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<number[]>(
     initialData?.selectedSizes || []
+  );
+  const [sizeQuantities, setSizeQuantities] = useState<Record<number, number>>(
+    initialData?.sizeQuantities?.reduce(
+      (acc, sq) => ({ ...acc, [sq.sizeId]: sq.quantity }),
+      {}
+    ) || {}
   );
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,6 +153,7 @@ export function ProductFormStep2Enhanced({
     resolver: zodResolver(createProductStep2Schema),
     defaultValues: {
       selectedSizes: initialData?.selectedSizes || [],
+      sizeQuantities: initialData?.sizeQuantities || [],
       newSize: initialData?.newSize,
     },
   });
@@ -192,6 +202,35 @@ export function ProductFormStep2Enhanced({
 
     setSelectedSizes(updatedSizes);
     form.setValue("selectedSizes", updatedSizes);
+
+    // If removing a size, also remove its quantity
+    if (selectedSizes.includes(sizeId)) {
+      const newQuantities = { ...sizeQuantities };
+      delete newQuantities[sizeId];
+      setSizeQuantities(newQuantities);
+      updateFormQuantities(newQuantities);
+    } else {
+      // If adding a size, set default quantity to 1
+      const newQuantities = { ...sizeQuantities, [sizeId]: 1 };
+      setSizeQuantities(newQuantities);
+      updateFormQuantities(newQuantities);
+    }
+  };
+
+  const updateFormQuantities = (quantities: Record<number, number>) => {
+    const quantityArray = Object.entries(quantities).map(
+      ([sizeId, quantity]) => ({
+        sizeId: parseInt(sizeId),
+        quantity,
+      })
+    );
+    form.setValue("sizeQuantities", quantityArray);
+  };
+
+  const handleQuantityChange = (sizeId: number, quantity: number) => {
+    const newQuantities = { ...sizeQuantities, [sizeId]: quantity };
+    setSizeQuantities(newQuantities);
+    updateFormQuantities(newQuantities);
   };
 
   const handleCreateSize = async (data: CreateSizeDto) => {
@@ -216,6 +255,11 @@ export function ProductFormStep2Enhanced({
       setSelectedSizes(updatedSelectedSizes);
       form.setValue("selectedSizes", updatedSelectedSizes);
 
+      // Set default quantity for new size
+      const newQuantities = { ...sizeQuantities, [newSize.id]: 1 };
+      setSizeQuantities(newQuantities);
+      updateFormQuantities(newQuantities);
+
       newSizeForm.reset();
       setIsCreateDialogOpen(false);
 
@@ -236,11 +280,64 @@ export function ProductFormStep2Enhanced({
     const updatedSizes = selectedSizes.filter((id) => id !== sizeId);
     setSelectedSizes(updatedSizes);
     form.setValue("selectedSizes", updatedSizes);
+
+    // Remove quantity for this size
+    const newQuantities = { ...sizeQuantities };
+    delete newQuantities[sizeId];
+    setSizeQuantities(newQuantities);
+    updateFormQuantities(newQuantities);
   };
 
-  const onSubmit = (data: CreateProductStep2FormData) => {
-    onComplete(data);
-    onNext();
+  const onSubmit = async (data: CreateProductStep2FormData) => {
+    // Validate that all selected sizes have quantities
+    const hasAllQuantities = selectedSizes.every(
+      (sizeId) => sizeQuantities[sizeId] && sizeQuantities[sizeId] > 0
+    );
+
+    if (!hasAllQuantities) {
+      alert("Please set quantity for all selected sizes");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Prepare the bulk add data
+      const bulkAddData: BulkAddSizesToProductDto = {
+        productId: productId,
+        sizes: selectedSizes.map((sizeId) => ({
+          sizeId: sizeId,
+          quantity: sizeQuantities[sizeId] || 0,
+        })),
+      };
+
+      // Call the bulk-add API
+      await productApi.bulkAddSizesToProduct(bulkAddData);
+
+      console.log("Product sizes added successfully:", bulkAddData);
+
+      // Complete step and move to next
+      onComplete(data, productId);
+      onNext();
+    } catch (error) {
+      console.error("Error adding product sizes:", error);
+      alert(
+        `Error adding product sizes: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isFormValid = () => {
+    return (
+      selectedSizes.length > 0 &&
+      selectedSizes.every(
+        (sizeId) => sizeQuantities[sizeId] && sizeQuantities[sizeId] > 0
+      )
+    );
   };
 
   const groupedSizes = sizes.reduce((acc, size) => {
@@ -286,6 +383,48 @@ export function ProductFormStep2Enhanced({
                             onClick={() => removeSizeFromSelection(sizeId)}
                           />
                         </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Size Quantities */}
+              {selectedSizes.length > 0 && (
+                <div className="space-y-4">
+                  <FormLabel>Set Quantities for Selected Sizes</FormLabel>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedSizes.map((sizeId) => {
+                      const size = sizes.find((s) => s.id === sizeId);
+                      if (!size) return null;
+                      return (
+                        <div
+                          key={sizeId}
+                          className="flex items-center space-x-2 p-3 border rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <span className="text-sm font-medium">
+                              {size.value} {size.system && `(${size.system})`}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={sizeQuantities[sizeId] || 1}
+                              onChange={(e) =>
+                                handleQuantityChange(
+                                  sizeId,
+                                  parseInt(e.target.value) || 1
+                                )
+                              }
+                              className="w-20"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              qty
+                            </span>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -423,12 +562,22 @@ export function ProductFormStep2Enhanced({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="sizeQuantities"
+                render={() => (
+                  <FormItem>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="flex justify-between">
                 <Button type="button" variant="outline" onClick={onPrevious}>
                   Previous
                 </Button>
-                <Button type="submit" disabled={selectedSizes.length === 0}>
-                  Next: Select Categories
+                <Button type="submit" disabled={!isFormValid() || isLoading}>
+                  {isLoading ? "Adding Sizes..." : "Next: Select Categories"}
                 </Button>
               </div>
             </form>

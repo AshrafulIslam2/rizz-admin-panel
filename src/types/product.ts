@@ -29,8 +29,13 @@ export interface Category {
     parentId?: number;
     parent?: Category;
     children?: Category[];
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateCategoryDto {
+    name: string;
+    parentId?: number;
 }
 
 export interface Color {

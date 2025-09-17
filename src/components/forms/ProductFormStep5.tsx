@@ -38,7 +38,8 @@ import {
 
 interface ProductFormStep5Props {
   initialData?: CreateProductStep5FormData;
-  onComplete: (data: CreateProductStep5FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep5FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
@@ -52,6 +53,7 @@ interface PricingTier {
 
 export function ProductFormStep5({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -136,7 +138,7 @@ export function ProductFormStep5({
       return;
     }
 
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 

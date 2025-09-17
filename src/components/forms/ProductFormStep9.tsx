@@ -47,13 +47,15 @@ import {
 
 interface ProductFormStep9Props {
   initialData?: CreateProductStep9FormData;
-  onComplete: (data: CreateProductStep9FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep9FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
 
 export function ProductFormStep9({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -76,7 +78,7 @@ export function ProductFormStep9({
   });
 
   const handleFormSubmit = (data: CreateProductStep9FormData) => {
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 

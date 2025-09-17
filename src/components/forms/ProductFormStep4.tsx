@@ -42,7 +42,8 @@ import type { Color } from "@/types/product";
 
 interface ProductFormStep4Props {
   initialData?: CreateProductStep4FormData;
-  onComplete: (data: CreateProductStep4FormData) => void;
+  productId: number;
+  onComplete: (data: CreateProductStep4FormData, productId: number) => void;
   onNext: () => void;
   onPrevious: () => void;
 }
@@ -149,6 +150,7 @@ const colorSuggestions = [
 
 export function ProductFormStep4({
   initialData,
+  productId,
   onComplete,
   onNext,
   onPrevious,
@@ -235,7 +237,7 @@ export function ProductFormStep4({
   };
 
   const onSubmit = (data: CreateProductStep4FormData) => {
-    onComplete(data);
+    onComplete(data, productId);
     onNext();
   };
 
