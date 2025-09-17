@@ -171,7 +171,13 @@ export function ProductFormStep3({
 
       // Auto-select the new category
       const currentSelected = form.getValues("selectedCategories");
-      form.setValue("selectedCategories", [...currentSelected, newCategory.id]);
+      form.setValue(
+        "selectedCategories",
+        [...currentSelected, newCategory.id],
+        {
+          shouldDirty: true,
+        }
+      );
     } catch (error) {
       console.error("Failed to create category:", error);
       // In a real app, you'd show an error toast/notification here
@@ -183,11 +189,16 @@ export function ProductFormStep3({
   const handleCategoryToggle = (categoryId: number, checked: boolean) => {
     const currentSelected = form.getValues("selectedCategories");
     if (checked) {
-      form.setValue("selectedCategories", [...currentSelected, categoryId]);
+      form.setValue("selectedCategories", [...currentSelected, categoryId], {
+        shouldDirty: true,
+      });
     } else {
       form.setValue(
         "selectedCategories",
-        currentSelected.filter((id) => id !== categoryId)
+        currentSelected.filter((id) => id !== categoryId),
+        {
+          shouldDirty: true,
+        }
       );
     }
   };
@@ -196,16 +207,14 @@ export function ProductFormStep3({
     try {
       setIsSubmitting(true);
 
-      // Add each selected category to the product
-      const addCategoryPromises = data.selectedCategories.map((categoryId) =>
-        productApi.addCategoryToProduct({
+      // Only make API calls if form is dirty (user has selected categories)
+      if (form.formState.isDirty && data.selectedCategories.length > 0) {
+        // Use bulk API to add all selected categories at once
+        await productApi.bulkAddCategoriesToProduct({
           productId,
-          categoryId,
-        })
-      );
-
-      // Wait for all category additions to complete
-      await Promise.all(addCategoryPromises);
+          selectedCategories: data.selectedCategories,
+        });
+      }
 
       // Call the completion handler and proceed to next step
       onComplete(data, productId);
@@ -424,17 +433,20 @@ export function ProductFormStep3({
               >
                 Previous: Sizes
               </Button>
-              <Button
-                type="submit"
-                disabled={selectedCategories.length === 0 || isSubmitting}
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Adding Categories...
+                    {form.formState.isDirty && selectedCategories.length > 0
+                      ? "Adding Categories..."
+                      : "Processing..."}
                   </>
                 ) : (
-                  "Next: Select Colors"
+                  `${
+                    form.formState.isDirty && selectedCategories.length > 0
+                      ? "Save & "
+                      : ""
+                  }Next: Select Colors`
                 )}
               </Button>
             </div>

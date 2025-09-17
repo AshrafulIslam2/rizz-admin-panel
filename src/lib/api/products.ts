@@ -73,6 +73,21 @@ export interface AddCategoryToProductDto {
     categoryId: number;
 }
 
+export interface BulkAddCategoriesToProductDto {
+    productId: number;
+    selectedCategories: number[];
+}
+
+export interface BulkAddColorsToProductDto {
+    productId: number;
+    colors: ColorAssignmentDto[];
+}
+
+export interface ColorAssignmentDto {
+    colorId: number;
+    // Add other properties if needed (like quantity, etc.)
+}
+
 export const productApi = {
     async findAll(): Promise<Product[]> {
         const response = await fetch('http://localhost:3008/products', {
@@ -126,6 +141,40 @@ export const productApi = {
 
     async addCategoryToProduct(data: AddCategoryToProductDto): Promise<any> {
         const response = await fetch('http://localhost:3008/product-categories/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    async bulkAddCategoriesToProduct(data: BulkAddCategoriesToProductDto): Promise<any> {
+        const response = await fetch('http://localhost:3008/product-categories/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    async bulkAddColorsToProduct(data: BulkAddColorsToProductDto): Promise<any> {
+        const response = await fetch('http://localhost:3008/product-colors/bulk-add-colors-to-product', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

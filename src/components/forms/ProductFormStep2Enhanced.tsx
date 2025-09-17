@@ -201,7 +201,7 @@ export function ProductFormStep2Enhanced({
       : [...selectedSizes, sizeId];
 
     setSelectedSizes(updatedSizes);
-    form.setValue("selectedSizes", updatedSizes);
+    form.setValue("selectedSizes", updatedSizes, { shouldDirty: true });
 
     // If removing a size, also remove its quantity
     if (selectedSizes.includes(sizeId)) {
@@ -224,7 +224,7 @@ export function ProductFormStep2Enhanced({
         quantity,
       })
     );
-    form.setValue("sizeQuantities", quantityArray);
+    form.setValue("sizeQuantities", quantityArray, { shouldDirty: true });
   };
 
   const handleQuantityChange = (sizeId: number, quantity: number) => {
@@ -253,7 +253,9 @@ export function ProductFormStep2Enhanced({
       setSizes((prev) => [...prev, newSize]);
       const updatedSelectedSizes = [...selectedSizes, newSize.id];
       setSelectedSizes(updatedSelectedSizes);
-      form.setValue("selectedSizes", updatedSelectedSizes);
+      form.setValue("selectedSizes", updatedSelectedSizes, {
+        shouldDirty: true,
+      });
 
       // Set default quantity for new size
       const newQuantities = { ...sizeQuantities, [newSize.id]: 1 };
@@ -279,7 +281,7 @@ export function ProductFormStep2Enhanced({
   const removeSizeFromSelection = (sizeId: number) => {
     const updatedSizes = selectedSizes.filter((id) => id !== sizeId);
     setSelectedSizes(updatedSizes);
-    form.setValue("selectedSizes", updatedSizes);
+    form.setValue("selectedSizes", updatedSizes, { shouldDirty: true });
 
     // Remove quantity for this size
     const newQuantities = { ...sizeQuantities };
@@ -289,32 +291,35 @@ export function ProductFormStep2Enhanced({
   };
 
   const onSubmit = async (data: CreateProductStep2FormData) => {
-    // Validate that all selected sizes have quantities
-    const hasAllQuantities = selectedSizes.every(
-      (sizeId) => sizeQuantities[sizeId] && sizeQuantities[sizeId] > 0
-    );
-
-    if (!hasAllQuantities) {
-      alert("Please set quantity for all selected sizes");
-      return;
-    }
-
     try {
       setIsLoading(true);
 
-      // Prepare the bulk add data
-      const bulkAddData: BulkAddSizesToProductDto = {
-        productId: productId,
-        sizes: selectedSizes.map((sizeId) => ({
-          sizeId: sizeId,
-          quantity: sizeQuantities[sizeId] || 0,
-        })),
-      };
+      // Only make API calls if form is dirty (user has selected sizes) and sizes are selected
+      if (form.formState.isDirty && selectedSizes.length > 0) {
+        // Validate that all selected sizes have quantities
+        const hasAllQuantities = selectedSizes.every(
+          (sizeId) => sizeQuantities[sizeId] && sizeQuantities[sizeId] > 0
+        );
 
-      // Call the bulk-add API
-      await productApi.bulkAddSizesToProduct(bulkAddData);
+        if (!hasAllQuantities) {
+          alert("Please set quantity for all selected sizes");
+          return;
+        }
 
-      console.log("Product sizes added successfully:", bulkAddData);
+        // Prepare the bulk add data
+        const bulkAddData: BulkAddSizesToProductDto = {
+          productId: productId,
+          sizes: selectedSizes.map((sizeId) => ({
+            sizeId: sizeId,
+            quantity: sizeQuantities[sizeId] || 0,
+          })),
+        };
+
+        // Call the bulk-add API
+        await productApi.bulkAddSizesToProduct(bulkAddData);
+
+        console.log("Product sizes added successfully:", bulkAddData);
+      }
 
       // Complete step and move to next
       onComplete(data, productId);
@@ -332,8 +337,9 @@ export function ProductFormStep2Enhanced({
   };
 
   const isFormValid = () => {
+    // Allow proceeding if no sizes are selected (skip step) or if all selected sizes have quantities
     return (
-      selectedSizes.length > 0 &&
+      selectedSizes.length === 0 ||
       selectedSizes.every(
         (sizeId) => sizeQuantities[sizeId] && sizeQuantities[sizeId] > 0
       )
@@ -577,7 +583,15 @@ export function ProductFormStep2Enhanced({
                   Previous
                 </Button>
                 <Button type="submit" disabled={!isFormValid() || isLoading}>
-                  {isLoading ? "Adding Sizes..." : "Next: Select Categories"}
+                  {isLoading
+                    ? form.formState.isDirty && selectedSizes.length > 0
+                      ? "Adding Sizes..."
+                      : "Processing..."
+                    : `${
+                        form.formState.isDirty && selectedSizes.length > 0
+                          ? "Save & "
+                          : ""
+                      }Next: Select Categories`}
                 </Button>
               </div>
             </form>

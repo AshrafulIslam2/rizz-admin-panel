@@ -237,7 +237,7 @@ export default function ProductListPage() {
                                 variant="outline"
                                 className="text-xs"
                               >
-                                {category.name || "Category"}
+                                {category.category.name || "Category"}
                               </Badge>
                             )
                           )

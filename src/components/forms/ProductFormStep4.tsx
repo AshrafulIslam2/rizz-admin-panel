@@ -32,13 +32,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Palette, Circle } from "lucide-react";
+import { Plus, Palette, Circle, Loader2 } from "lucide-react";
 import {
   createProductStep4Schema,
   CreateProductStep4FormData,
   colorSchema,
 } from "@/types/validation";
-import type { Color } from "@/types/product";
+import type { Color, CreateColorDto } from "@/types/product";
+import { colorsApi } from "@/lib/api/colors";
+import {
+  productApi,
+  BulkAddColorsToProductDto,
+  ColorAssignmentDto,
+} from "@/lib/api/products";
 
 interface ProductFormStep4Props {
   initialData?: CreateProductStep4FormData;
@@ -47,94 +53,6 @@ interface ProductFormStep4Props {
   onNext: () => void;
   onPrevious: () => void;
 }
-
-// Mock colors data - in real app, this would come from an API
-const mockColors: Color[] = [
-  {
-    id: 1,
-    name: "Red",
-    hexCode: "#FF0000",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 2,
-    name: "Blue",
-    hexCode: "#0000FF",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 3,
-    name: "Green",
-    hexCode: "#00FF00",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 4,
-    name: "Black",
-    hexCode: "#000000",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 5,
-    name: "White",
-    hexCode: "#FFFFFF",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 6,
-    name: "Yellow",
-    hexCode: "#FFFF00",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 7,
-    name: "Purple",
-    hexCode: "#800080",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 8,
-    name: "Orange",
-    hexCode: "#FFA500",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 9,
-    name: "Pink",
-    hexCode: "#FFC0CB",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 10,
-    name: "Gray",
-    hexCode: "#808080",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 11,
-    name: "Brown",
-    hexCode: "#A52A2A",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 12,
-    name: "Navy",
-    hexCode: "#000080",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
 
 // Predefined color suggestions for quick creation
 const colorSuggestions = [
@@ -155,9 +73,11 @@ export function ProductFormStep4({
   onNext,
   onPrevious,
 }: ProductFormStep4Props) {
-  const [colors, setColors] = useState<Color[]>(mockColors);
+  const [colors, setColors] = useState<Color[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingColors, setIsLoadingColors] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedHexCode, setSelectedHexCode] = useState("#FF0000");
 
   const form = useForm<CreateProductStep4FormData>({
@@ -168,13 +88,56 @@ export function ProductFormStep4({
     },
   });
 
-  const newColorForm = useForm({
+  const newColorForm = useForm<CreateColorDto>({
     resolver: zodResolver(colorSchema),
     defaultValues: {
       name: "",
       hexCode: "",
     },
   });
+
+  // Load colors from API on mount
+  useEffect(() => {
+    const loadColors = async () => {
+      try {
+        setIsLoadingColors(true);
+        const fetchedColors = await colorsApi.findAll();
+        // Transform API response to match Color interface
+        const transformedColors: Color[] = fetchedColors.map((color) => ({
+          ...color,
+          createdAt: new Date(color.createdAt),
+          updatedAt: new Date(color.updatedAt),
+        }));
+        setColors(transformedColors);
+
+        // Clean up any invalid selected colors that don't exist in the fetched colors
+        const currentSelected = form.getValues("selectedColors");
+        const validSelected = currentSelected.filter((colorId) =>
+          transformedColors.some((color) => color.id === colorId)
+        );
+
+        if (validSelected.length !== currentSelected.length) {
+          console.log("Cleaning up invalid color selections:", {
+            original: currentSelected,
+            valid: validSelected,
+            removed: currentSelected.filter(
+              (id) => !validSelected.includes(id)
+            ),
+          });
+          form.setValue("selectedColors", validSelected, {
+            shouldDirty: false,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load colors:", error);
+        // Show error message to user
+      } finally {
+        setIsLoadingColors(false);
+      }
+    };
+
+    loadColors();
+  }, [form]);
 
   const getContrastColor = (hexCode?: string): string => {
     if (!hexCode) return "#000000";
@@ -186,30 +149,36 @@ export function ProductFormStep4({
     return luminance > 0.5 ? "#000000" : "#FFFFFF";
   };
 
-  const handleCreateColor = async (data: {
-    name: string;
-    hexCode?: string;
-  }) => {
+  const handleCreateColor = async (data: CreateColorDto) => {
     setIsLoading(true);
     try {
-      // In real app, this would be an API call
-      const newColor: Color = {
-        id: Math.max(...colors.map((c) => c.id)) + 1,
-        name: data.name,
-        hexCode: data.hexCode || undefined,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      // Call the API to create the color
+      const newColor = await colorsApi.create(data);
+
+      // Transform response to Color interface
+      const transformedColor: Color = {
+        ...newColor,
+        createdAt: new Date(newColor.createdAt),
+        updatedAt: new Date(newColor.updatedAt),
       };
 
-      setColors((prev) => [...prev, newColor]);
+      // Add the new color to the local state
+      setColors((prev) => [...prev, transformedColor]);
       setIsCreateDialogOpen(false);
       newColorForm.reset();
 
       // Auto-select the new color
       const currentSelected = form.getValues("selectedColors");
-      form.setValue("selectedColors", [...currentSelected, newColor.id]);
+      form.setValue(
+        "selectedColors",
+        [...currentSelected, transformedColor.id],
+        {
+          shouldDirty: true,
+        }
+      );
     } catch (error) {
       console.error("Failed to create color:", error);
+      // In a real app, you'd show an error toast/notification here
     } finally {
       setIsLoading(false);
     }
@@ -218,11 +187,16 @@ export function ProductFormStep4({
   const handleColorToggle = (colorId: number, checked: boolean) => {
     const currentSelected = form.getValues("selectedColors");
     if (checked) {
-      form.setValue("selectedColors", [...currentSelected, colorId]);
+      form.setValue("selectedColors", [...currentSelected, colorId], {
+        shouldDirty: true,
+      });
     } else {
       form.setValue(
         "selectedColors",
-        currentSelected.filter((id) => id !== colorId)
+        currentSelected.filter((id) => id !== colorId),
+        {
+          shouldDirty: true,
+        }
       );
     }
   };
@@ -236,9 +210,54 @@ export function ProductFormStep4({
     setSelectedHexCode(suggestion.hexCode);
   };
 
-  const onSubmit = (data: CreateProductStep4FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const onSubmit = async (data: CreateProductStep4FormData) => {
+    try {
+      setIsSubmitting(true);
+
+      // Only make API calls if form is dirty (user has selected colors)
+      if (form.formState.isDirty && data.selectedColors.length > 0) {
+        // Filter out any invalid color IDs that don't exist in our colors array
+        const validColorIds = data.selectedColors.filter((colorId) =>
+          colors.some((color) => color.id === colorId)
+        );
+
+        console.log(
+          "All colors in state:",
+          colors.map((c) => ({ id: c.id, name: c.name }))
+        );
+        console.log("Form selectedColors:", data.selectedColors);
+        console.log("Valid color IDs:", validColorIds);
+
+        if (validColorIds.length === 0) {
+          console.warn("No valid colors selected, skipping API call");
+        } else {
+          // Transform validColorIds to ColorAssignmentDto format
+          const colorAssignments: ColorAssignmentDto[] = validColorIds.map(
+            (colorId) => ({
+              colorId,
+            })
+          );
+
+          // Use bulk API to add all selected colors at once
+          const bulkData: BulkAddColorsToProductDto = {
+            productId,
+            colors: colorAssignments,
+          };
+
+          console.log("Sending bulk data:", JSON.stringify(bulkData, null, 2));
+          await productApi.bulkAddColorsToProduct(bulkData);
+        }
+      }
+
+      // Call the completion handler and proceed to next step
+      onComplete(data, productId);
+      onNext();
+    } catch (error) {
+      console.error("Failed to add colors to product:", error);
+      // In a real app, you'd show an error toast/notification here
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedColors = form.watch("selectedColors");
@@ -389,7 +408,15 @@ export function ProductFormStep4({
                     Choose one or more colors for your product
                   </FormDescription>
 
-                  {colors.length === 0 ? (
+                  {isLoadingColors ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-12 w-12 mx-auto mb-4 opacity-50 animate-spin" />
+                      <p className="text-lg font-medium mb-2">
+                        Loading colors...
+                      </p>
+                      <p>Please wait while we fetch available colors</p>
+                    </div>
+                  ) : colors.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Palette className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium mb-2">
@@ -450,7 +477,21 @@ export function ProductFormStep4({
             {/* Selected Colors Preview */}
             {selectedColors.length > 0 && (
               <div className="space-y-3">
-                <h4 className="font-medium">Selected Colors:</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Selected Colors:</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      form.setValue("selectedColors", [], {
+                        shouldDirty: true,
+                      });
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {selectedColors.map((colorId) => {
                     const color = colors.find((c) => c.id === colorId);
@@ -470,18 +511,44 @@ export function ProductFormStep4({
                         )}
                         {color.name}
                       </Badge>
-                    ) : null;
+                    ) : (
+                      <Badge
+                        key={colorId}
+                        variant="destructive"
+                        className="flex items-center gap-2 px-3 py-1"
+                      >
+                        Invalid Color ID: {colorId}
+                      </Badge>
+                    );
                   })}
                 </div>
               </div>
             )}
 
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: Categories
               </Button>
-              <Button type="submit" disabled={selectedColors.length === 0}>
-                Next: Configure Pricing
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {form.formState.isDirty && selectedColors.length > 0
+                      ? "Adding Colors..."
+                      : "Processing..."}
+                  </>
+                ) : (
+                  `${
+                    form.formState.isDirty && selectedColors.length > 0
+                      ? "Save & "
+                      : ""
+                  }Next: Configure Pricing`
+                )}
               </Button>
             </div>
           </form>

@@ -46,6 +46,11 @@ export interface Color {
     updatedAt: Date;
 }
 
+export interface CreateColorDto {
+    name: string;
+    hexCode?: string;
+}
+
 export interface ProductPricing {
     id: number;
     productId: number;
