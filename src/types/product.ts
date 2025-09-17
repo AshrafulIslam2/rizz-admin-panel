@@ -26,7 +26,7 @@ export interface Size {
 export interface Category {
     id: number;
     name: string;
-    parentId?: number;
+    parentId?: number | null;
     parent?: Category;
     children?: Category[];
     createdAt: string;
@@ -35,7 +35,7 @@ export interface Category {
 
 export interface CreateCategoryDto {
     name: string;
-    parentId?: number;
+    parentId?: number | null;
 }
 
 export interface Color {

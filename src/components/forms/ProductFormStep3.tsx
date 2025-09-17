@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ import {
 } from "@/types/validation";
 import type { Category, CreateCategoryDto } from "@/types/product";
 import { categoriesApi } from "@/lib/api/categories";
+import { productApi } from "@/lib/api/products";
 
 interface ProductFormStep3Props {
   initialData?: CreateProductStep3FormData;
@@ -67,6 +68,7 @@ export function ProductFormStep3({
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<CreateProductStep3FormData>({
     resolver: zodResolver(createProductStep3Schema),
@@ -80,7 +82,7 @@ export function ProductFormStep3({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: "",
-      parentId: undefined,
+      parentId: null,
     },
   });
 
@@ -113,6 +115,47 @@ export function ProductFormStep3({
     return parent
       ? `${getCategoryPath(parent)} > ${category.name}`
       : category.name;
+  };
+
+  // Recursive function to render category tree with unlimited nesting
+  const renderCategoryTree = (
+    category: Category,
+    level: number
+  ): React.ReactNode => {
+    const subcategories = getSubCategories(category.id);
+    const marginLeft = level * 24; // 24px per level for indentation
+
+    return (
+      <div key={category.id} className="space-y-2">
+        <div
+          className={`flex items-center space-x-2 p-3 border rounded-lg ${
+            level > 0 ? "bg-muted/30" : ""
+          }`}
+          style={{ marginLeft: `${marginLeft}px` }}
+        >
+          <Checkbox
+            id={`category-${category.id}`}
+            checked={selectedCategories.includes(category.id)}
+            onCheckedChange={(checked) =>
+              handleCategoryToggle(category.id, checked as boolean)
+            }
+          />
+          <label
+            htmlFor={`category-${category.id}`}
+            className={`${
+              level === 0 ? "font-medium" : "text-sm"
+            } flex-1 cursor-pointer`}
+          >
+            {category.name}
+          </label>
+        </div>
+
+        {/* Render subcategories recursively */}
+        {subcategories.map((subCategory) =>
+          renderCategoryTree(subCategory, level + 1)
+        )}
+      </div>
+    );
   };
 
   const handleCreateCategory = async (data: CreateCategoryDto) => {
@@ -149,9 +192,30 @@ export function ProductFormStep3({
     }
   };
 
-  const onSubmit = (data: CreateProductStep3FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const onSubmit = async (data: CreateProductStep3FormData) => {
+    try {
+      setIsSubmitting(true);
+
+      // Add each selected category to the product
+      const addCategoryPromises = data.selectedCategories.map((categoryId) =>
+        productApi.addCategoryToProduct({
+          productId,
+          categoryId,
+        })
+      );
+
+      // Wait for all category additions to complete
+      await Promise.all(addCategoryPromises);
+
+      // Call the completion handler and proceed to next step
+      onComplete(data, productId);
+      onNext();
+    } catch (error) {
+      console.error("Failed to add categories to product:", error);
+      // In a real app, you'd show an error toast/notification here
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedCategories = form.watch("selectedCategories");
@@ -221,7 +285,7 @@ export function ProductFormStep3({
                             <Select
                               onValueChange={(value) =>
                                 field.onChange(
-                                  value === "none" ? undefined : parseInt(value)
+                                  value === "none" ? null : parseInt(value)
                                 )
                               }
                               value={field.value?.toString() || "none"}
@@ -321,60 +385,10 @@ export function ProductFormStep3({
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {/* Root Categories */}
-                      {rootCategories.map((rootCategory) => (
-                        <div key={rootCategory.id} className="space-y-2">
-                          <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                            <Checkbox
-                              id={`category-${rootCategory.id}`}
-                              checked={selectedCategories.includes(
-                                rootCategory.id
-                              )}
-                              onCheckedChange={(checked) =>
-                                handleCategoryToggle(
-                                  rootCategory.id,
-                                  checked as boolean
-                                )
-                              }
-                            />
-                            <label
-                              htmlFor={`category-${rootCategory.id}`}
-                              className="font-medium flex-1 cursor-pointer"
-                            >
-                              {rootCategory.name}
-                            </label>
-                          </div>
-
-                          {/* Subcategories */}
-                          {getSubCategories(rootCategory.id).map(
-                            (subCategory) => (
-                              <div
-                                key={subCategory.id}
-                                className="ml-6 flex items-center space-x-2 p-2 border rounded-md bg-muted/50"
-                              >
-                                <Checkbox
-                                  id={`category-${subCategory.id}`}
-                                  checked={selectedCategories.includes(
-                                    subCategory.id
-                                  )}
-                                  onCheckedChange={(checked) =>
-                                    handleCategoryToggle(
-                                      subCategory.id,
-                                      checked as boolean
-                                    )
-                                  }
-                                />
-                                <label
-                                  htmlFor={`category-${subCategory.id}`}
-                                  className="text-sm flex-1 cursor-pointer"
-                                >
-                                  {subCategory.name}
-                                </label>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      ))}
+                      {/* Recursive Category Tree */}
+                      {rootCategories.map((rootCategory) =>
+                        renderCategoryTree(rootCategory, 0)
+                      )}
                     </div>
                   )}
                   <FormMessage />
@@ -402,11 +416,26 @@ export function ProductFormStep3({
             )}
 
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: Sizes
               </Button>
-              <Button type="submit" disabled={selectedCategories.length === 0}>
-                Next: Select Colors
+              <Button
+                type="submit"
+                disabled={selectedCategories.length === 0 || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Adding Categories...
+                  </>
+                ) : (
+                  "Next: Select Colors"
+                )}
               </Button>
             </div>
           </form>

@@ -35,7 +35,7 @@ export const createProductStep2Schema = z.object({
 
 export const categorySchema = z.object({
     name: z.string().min(1, "Category name is required"),
-    parentId: z.number().optional(),
+    parentId: z.number().optional().nullable(),
 })
 
 export const createProductStep3Schema = z.object({

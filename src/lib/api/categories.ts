@@ -3,7 +3,7 @@ const API_BASE_URL = 'http://localhost:3008';
 export interface Category {
     id: number;
     name: string;
-    parentId?: number;
+    parentId?: number | null;
     createdAt: string;
     updatedAt: string;
     children?: Category[];
@@ -11,7 +11,7 @@ export interface Category {
 
 export interface CreateCategoryDto {
     name: string;
-    parentId?: number;
+    parentId?: number | null;
 }
 
 export const categoriesApi = {

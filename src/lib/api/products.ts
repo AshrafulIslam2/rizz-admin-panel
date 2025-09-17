@@ -68,6 +68,11 @@ export interface BulkAddSizesToProductDto {
     }[];
 }
 
+export interface AddCategoryToProductDto {
+    productId: number;
+    categoryId: number;
+}
+
 export const productApi = {
     async findAll(): Promise<Product[]> {
         const response = await fetch('http://localhost:3008/products', {
@@ -104,6 +109,23 @@ export const productApi = {
 
     async bulkAddSizesToProduct(data: BulkAddSizesToProductDto): Promise<void> {
         const response = await fetch('http://localhost:3008/product-sizes/bulk-add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    async addCategoryToProduct(data: AddCategoryToProductDto): Promise<any> {
+        const response = await fetch('http://localhost:3008/product-categories/add', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
