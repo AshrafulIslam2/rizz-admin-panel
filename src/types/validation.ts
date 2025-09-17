@@ -63,8 +63,23 @@ export const pricingSchema = z.object({
     path: ["max_quantity"],
 })
 
+export const variantPricingSchema = z.object({
+    colorId: z.number().positive("Color is required"),
+    sizeId: z.number().positive("Size is required"),
+    pricingTiers: z.array(pricingSchema).min(1, "At least one pricing tier must be added"),
+})
+
 export const createProductStep5Schema = z.object({
-    pricing: z.array(pricingSchema).min(1, "At least one pricing tier must be added"),
+    // Keep old pricing for backward compatibility or simple products
+    pricing: z.array(pricingSchema).optional(),
+    // New variant-based pricing
+    variantPricing: z.array(variantPricingSchema).optional(),
+}).refine((data) => {
+    // At least one pricing method must be provided
+    return (data.pricing && data.pricing.length > 0) || (data.variantPricing && data.variantPricing.length > 0);
+}, {
+    message: "Either simple pricing or variant pricing must be provided",
+    path: ["pricing"],
 })
 
 export const imageSchema = z.object({

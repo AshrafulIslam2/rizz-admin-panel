@@ -12,6 +12,14 @@ export interface SizeResponse {
     updatedAt: string;
 }
 
+export interface ProductSize {
+    productId: number;
+    sizeId: number;
+    createdAt: string;
+    updatedAt: string;
+    size: SizeResponse;
+}
+
 export const sizesApi = {
     async getAll(): Promise<SizeResponse[]> {
         const response = await fetch('http://localhost:3008/sizes', {
@@ -36,6 +44,22 @@ export const sizesApi = {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    async getProductSizes(productId: number): Promise<ProductSize[]> {
+        const response = await fetch(`http://localhost:3008/product-sizes/product/${productId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
 
         if (!response.ok) {
