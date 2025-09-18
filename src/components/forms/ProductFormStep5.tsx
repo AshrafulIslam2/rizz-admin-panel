@@ -45,6 +45,7 @@ import {
 } from "@/types/validation";
 import { colorsApi, Color, ProductColor } from "@/lib/api/colors";
 import { sizesApi, SizeResponse, ProductSize } from "@/lib/api/sizes";
+import { pricingApi, BulkCreatePricingRulesDto } from "@/lib/api/pricing";
 
 interface ProductFormStep5Props {
   initialData?: CreateProductStep5FormData;
@@ -77,6 +78,7 @@ export function ProductFormStep5({
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<CreateProductStep5FormData>({
     resolver: zodResolver(createProductStep5Schema),
@@ -116,6 +118,15 @@ export function ProductFormStep5({
   }, [productId]);
 
   const watchedVariantPricing = form.watch("variantPricing");
+
+  // Check if form has been modified
+  const isDirty =
+    form.formState.isDirty ||
+    (watchedVariantPricing &&
+      watchedVariantPricing.length > 0 &&
+      watchedVariantPricing.some((v) =>
+        v.pricingTiers?.some((t) => t.unit_price > 0)
+      ));
 
   // Get color and size names for display
   const getColorName = (colorId: number): string => {
@@ -197,9 +208,41 @@ export function ProductFormStep5({
     return basePrice * (1 - discount / 100);
   };
 
-  const handleFormSubmit = (data: CreateProductStep5FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const handleFormSubmit = async (data: CreateProductStep5FormData) => {
+    try {
+      setIsSubmitting(true);
+
+      // Transform the form data to API format
+      if (data.variantPricing && data.variantPricing.length > 0) {
+        const bulkCreateDto: BulkCreatePricingRulesDto = {
+          variantPricingRules: data.variantPricing.map((variant) => ({
+            colorId: variant.colorId,
+            sizeId: variant.sizeId,
+            pricingTiers: variant.pricingTiers.map((tier) => ({
+              min_quantity: tier.min_quantity,
+              max_quantity: tier.max_quantity,
+              unit_price: tier.unit_price,
+              discount_percentage: tier.discount_percentage || 0,
+            })),
+          })),
+        };
+
+        // Call the bulk create API
+        await pricingApi.bulkCreatePricingRules(productId, bulkCreateDto);
+
+        console.log("Pricing rules created successfully");
+      }
+
+      // Continue with the original flow
+      onComplete(data, productId);
+      onNext();
+    } catch (error) {
+      console.error("Error creating pricing rules:", error);
+      // You might want to show an error toast or message here
+      alert("Failed to save pricing rules. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -255,7 +298,11 @@ export function ProductFormStep5({
                     sizes.map((productSize) => (
                       <Card
                         key={`${productColor.color.id}-${productSize.size.id}`}
-                        className={`cursor-pointer transition-colors ${
+                        className={`transition-colors ${
+                          isSubmitting
+                            ? "opacity-50 cursor-not-allowed"
+                            : "cursor-pointer"
+                        } ${
                           variantExists(
                             productColor.color.id,
                             productSize.size.id
@@ -263,12 +310,14 @@ export function ProductFormStep5({
                             ? "bg-primary/10 border-primary"
                             : "hover:bg-muted"
                         }`}
-                        onClick={() =>
-                          addVariantPricing(
-                            productColor.color.id,
-                            productSize.size.id
-                          )
-                        }
+                        onClick={() => {
+                          if (!isSubmitting) {
+                            addVariantPricing(
+                              productColor.color.id,
+                              productSize.size.id
+                            );
+                          }
+                        }}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
@@ -338,6 +387,7 @@ export function ProductFormStep5({
                           type="button"
                           variant="outline"
                           size="sm"
+                          disabled={isSubmitting}
                           onClick={() => addPricingTierToVariant(variantIndex)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
@@ -347,6 +397,7 @@ export function ProductFormStep5({
                           type="button"
                           variant="outline"
                           size="sm"
+                          disabled={isSubmitting}
                           onClick={() => removeVariantPricing(variantIndex)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -371,6 +422,7 @@ export function ProductFormStep5({
                                   type="button"
                                   variant="outline"
                                   size="sm"
+                                  disabled={isSubmitting}
                                   onClick={() =>
                                     removePricingTierFromVariant(
                                       variantIndex,
@@ -395,6 +447,7 @@ export function ProductFormStep5({
                                       type="number"
                                       min="1"
                                       placeholder="1"
+                                      disabled={isSubmitting}
                                       {...field}
                                       value={field.value || ""}
                                       onChange={(e) =>
@@ -420,6 +473,7 @@ export function ProductFormStep5({
                                       type="number"
                                       min="1"
                                       placeholder="2"
+                                      disabled={isSubmitting}
                                       {...field}
                                       value={field.value || ""}
                                       onChange={(e) =>
@@ -446,6 +500,7 @@ export function ProductFormStep5({
                                       step="0.01"
                                       min="0"
                                       placeholder="0.00"
+                                      disabled={isSubmitting}
                                       {...field}
                                       value={field.value || ""}
                                       onChange={(e) =>
@@ -472,6 +527,7 @@ export function ProductFormStep5({
                                       min="0"
                                       max="100"
                                       placeholder="0"
+                                      disabled={isSubmitting}
                                       {...field}
                                       value={field.value || ""}
                                       onChange={(e) =>
@@ -550,13 +606,22 @@ export function ProductFormStep5({
               <Button
                 type="submit"
                 disabled={
+                  isSubmitting ||
+                  !isDirty ||
                   !watchedVariantPricing?.length ||
                   !watchedVariantPricing.some((v) =>
                     v.pricingTiers?.some((t) => t.unit_price > 0)
                   )
                 }
               >
-                Next: Upload Images
+                {isSubmitting ? (
+                  <>
+                    <Package className="h-4 w-4 mr-2 animate-spin" />
+                    Saving Pricing Rules...
+                  </>
+                ) : (
+                  "Next: Upload Images"
+                )}
               </Button>
             </div>
           </form>

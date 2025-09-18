@@ -64,7 +64,7 @@ export interface BulkAddSizesToProductDto {
     productId: number;
     sizes: {
         sizeId: number;
-        quantity?: number;
+        // quantity?: number;
     }[];
 }
 

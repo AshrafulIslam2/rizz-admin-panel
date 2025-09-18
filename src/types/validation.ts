@@ -22,14 +22,8 @@ export const sizeSchema = z.object({
     system: z.string().optional(),
 })
 
-export const selectedSizeWithQuantitySchema = z.object({
-    sizeId: z.number(),
-    quantity: z.number().min(1, "Quantity must be at least 1"),
-})
-
 export const createProductStep2Schema = z.object({
     selectedSizes: z.array(z.number()).min(1, "At least one size must be selected"),
-    sizeQuantities: z.array(selectedSizeWithQuantitySchema).min(1, "Quantities required for all selected sizes"),
     newSize: sizeSchema.optional(),
 })
 
