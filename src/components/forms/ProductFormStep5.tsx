@@ -46,6 +46,10 @@ import {
 import { colorsApi, Color, ProductColor } from "@/lib/api/colors";
 import { sizesApi, SizeResponse, ProductSize } from "@/lib/api/sizes";
 import { pricingApi, BulkCreatePricingRulesDto } from "@/lib/api/pricing";
+import {
+  productQuantitiesApi,
+  BulkCreateProductQuantitiesDto,
+} from "@/lib/api/productQuantities";
 
 interface ProductFormStep5Props {
   initialData?: CreateProductStep5FormData;
@@ -68,6 +72,14 @@ interface VariantPricing {
   pricingTiers: PricingTier[];
 }
 
+interface VariantQuantity {
+  colorId: number;
+  sizeId: number;
+  available_quantity: number;
+  minimum_threshold: number;
+  maximum_capacity: number;
+}
+
 export function ProductFormStep5({
   initialData,
   productId,
@@ -84,6 +96,7 @@ export function ProductFormStep5({
     resolver: zodResolver(createProductStep5Schema),
     defaultValues: {
       variantPricing: initialData?.variantPricing || [],
+      variantQuantities: initialData?.variantQuantities || [],
     },
   });
 
@@ -94,6 +107,15 @@ export function ProductFormStep5({
   } = useFieldArray({
     control: form.control,
     name: "variantPricing",
+  });
+
+  const {
+    fields: variantQuantityFields,
+    append: appendVariantQuantity,
+    remove: removeVariantQuantity,
+  } = useFieldArray({
+    control: form.control,
+    name: "variantQuantities",
   });
 
   // Load colors and sizes for the product
@@ -118,6 +140,7 @@ export function ProductFormStep5({
   }, [productId]);
 
   const watchedVariantPricing = form.watch("variantPricing");
+  const watchedVariantQuantities = form.watch("variantQuantities");
 
   // Check if form has been modified
   const isDirty =
@@ -126,6 +149,14 @@ export function ProductFormStep5({
       watchedVariantPricing.length > 0 &&
       watchedVariantPricing.some((v) =>
         v.pricingTiers?.some((t) => t.unit_price > 0)
+      )) ||
+    (watchedVariantQuantities &&
+      watchedVariantQuantities.length > 0 &&
+      watchedVariantQuantities.some(
+        (v) =>
+          v.available_quantity > 0 ||
+          v.minimum_threshold > 0 ||
+          v.maximum_capacity > 0
       ));
 
   // Get color and size names for display
@@ -148,6 +179,15 @@ export function ProductFormStep5({
     );
   };
 
+  // Check if a variant quantity combination already exists
+  const variantQuantityExists = (colorId: number, sizeId: number): boolean => {
+    return (
+      watchedVariantQuantities?.some(
+        (v) => v.colorId === colorId && v.sizeId === sizeId
+      ) || false
+    );
+  };
+
   // Add new variant pricing
   const addVariantPricing = (colorId: number, sizeId: number) => {
     if (!variantExists(colorId, sizeId)) {
@@ -162,6 +202,19 @@ export function ProductFormStep5({
             discount_percentage: 0,
           },
         ],
+      });
+    }
+  };
+
+  // Add new variant quantity
+  const addVariantQuantity = (colorId: number, sizeId: number) => {
+    if (!variantQuantityExists(colorId, sizeId)) {
+      appendVariantQuantity({
+        colorId,
+        sizeId,
+        available_quantity: 0,
+        minimum_threshold: 0,
+        maximum_capacity: 0,
       });
     }
   };
@@ -212,7 +265,7 @@ export function ProductFormStep5({
     try {
       setIsSubmitting(true);
 
-      // Transform the form data to API format
+      // Transform and submit pricing data if available
       if (data.variantPricing && data.variantPricing.length > 0) {
         const bulkCreateDto: BulkCreatePricingRulesDto = {
           variantPricingRules: data.variantPricing.map((variant) => ({
@@ -227,19 +280,36 @@ export function ProductFormStep5({
           })),
         };
 
-        // Call the bulk create API
         await pricingApi.bulkCreatePricingRules(productId, bulkCreateDto);
-
         console.log("Pricing rules created successfully");
+      }
+
+      // Transform and submit quantity data if available
+      if (data.variantQuantities && data.variantQuantities.length > 0) {
+        const bulkQuantitiesDto: BulkCreateProductQuantitiesDto = {
+          variantQuantities: data.variantQuantities.map((variant) => ({
+            colorId: variant.colorId,
+            sizeId: variant.sizeId,
+            available_quantity: variant.available_quantity,
+            minimum_threshold: variant.minimum_threshold,
+            maximum_capacity: variant.maximum_capacity,
+          })),
+        };
+
+        await productQuantitiesApi.bulkCreateProductQuantities(
+          productId,
+          bulkQuantitiesDto
+        );
+        console.log("Product quantities created successfully");
       }
 
       // Continue with the original flow
       onComplete(data, productId);
       onNext();
     } catch (error) {
-      console.error("Error creating pricing rules:", error);
+      console.error("Error creating pricing rules or quantities:", error);
       // You might want to show an error toast or message here
-      alert("Failed to save pricing rules. Please try again.");
+      alert("Failed to save pricing rules and quantities. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -263,12 +333,13 @@ export function ProductFormStep5({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5" />
-          Pricing Configuration
+          Pricing & Quantity Configuration
         </CardTitle>
         <CardDescription>
-          Set up pricing for your product variants. Create different price
-          points for different color + size combinations with quantity-based
-          pricing tiers.
+          Set up pricing and quantities for your product variants. Create
+          different price points and stock levels for different color + size
+          combinations with quantity-based pricing tiers and inventory
+          management.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -599,6 +670,245 @@ export function ProductFormStep5({
               })}
             </div>
 
+            {/* Variant Quantities */}
+            <div className="space-y-6">
+              {/* Quantity Variant Selection */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium">Variant Quantities</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Select color + size combinations to set quantity for
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quantity Variant Grid for Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {colors.map((productColor) =>
+                    sizes.map((productSize) => (
+                      <Card
+                        key={`quantity-${productColor.color.id}-${productSize.size.id}`}
+                        className={`transition-colors ${
+                          isSubmitting
+                            ? "opacity-50 cursor-not-allowed"
+                            : "cursor-pointer"
+                        } ${
+                          variantQuantityExists(
+                            productColor.color.id,
+                            productSize.size.id
+                          )
+                            ? "bg-green-50 border-green-500"
+                            : "hover:bg-muted"
+                        }`}
+                        onClick={() => {
+                          if (!isSubmitting) {
+                            addVariantQuantity(
+                              productColor.color.id,
+                              productSize.size.id
+                            );
+                          }
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Palette className="h-4 w-4" />
+                              <span
+                                className="w-4 h-4 rounded-full border"
+                                style={{
+                                  backgroundColor:
+                                    productColor.color.hexCode || "#ccc",
+                                }}
+                              />
+                              <span className="font-medium">
+                                {productColor.color.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Ruler className="h-4 w-4" />
+                              <span>{productSize.size.value}</span>
+                            </div>
+                          </div>
+                          {variantQuantityExists(
+                            productColor.color.id,
+                            productSize.size.id
+                          ) && (
+                            <Badge className="mt-2" variant="secondary">
+                              Quantity Set
+                            </Badge>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Variant Quantity Configuration */}
+              {variantQuantityFields.map((quantityField, quantityIndex) => {
+                const quantity = watchedVariantQuantities?.[quantityIndex];
+                if (!quantity) return null;
+
+                return (
+                  <Card key={quantityField.id} className="p-4 bg-green-50/50">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <h4 className="font-medium text-lg">
+                          {getColorName(quantity.colorId)} -{" "}
+                          {getSizeName(quantity.sizeId)}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-4 h-4 rounded-full border"
+                            style={{
+                              backgroundColor:
+                                colors.find(
+                                  (c) => c.color.id === quantity.colorId
+                                )?.color.hexCode || "#ccc",
+                            }}
+                          />
+                          <Badge variant="outline">
+                            {getSizeName(quantity.sizeId)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isSubmitting}
+                        onClick={() => removeVariantQuantity(quantityIndex)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Quantity Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name={`variantQuantities.${quantityIndex}.available_quantity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Available Quantity</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="100"
+                                disabled={isSubmitting}
+                                {...field}
+                                value={field.value || ""}
+                                onChange={(e) =>
+                                  field.onChange(parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Current stock available for this variant
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`variantQuantities.${quantityIndex}.minimum_threshold`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Minimum Threshold</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="10"
+                                disabled={isSubmitting}
+                                {...field}
+                                value={field.value || ""}
+                                onChange={(e) =>
+                                  field.onChange(parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Alert when stock falls below this level
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`variantQuantities.${quantityIndex}.maximum_capacity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Maximum Capacity</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                placeholder="500"
+                                disabled={isSubmitting}
+                                {...field}
+                                value={field.value || ""}
+                                onChange={(e) =>
+                                  field.onChange(parseInt(e.target.value) || 1)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Maximum stock capacity for this variant
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Quantity Summary */}
+                    <div className="mt-4 p-3 bg-background rounded-lg border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-4 w-4" />
+                        <span className="font-medium">Stock Summary</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">
+                            Available:
+                          </span>
+                          <br />
+                          <span className="font-medium text-green-600">
+                            {quantity.available_quantity} units
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Low Stock Alert:
+                          </span>
+                          <br />
+                          <span className="font-medium text-orange-600">
+                            {quantity.minimum_threshold} units
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Max Capacity:
+                          </span>
+                          <br />
+                          <span className="font-medium text-blue-600">
+                            {quantity.maximum_capacity} units
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
             <div className="flex justify-between">
               <Button type="button" variant="outline" onClick={onPrevious}>
                 Previous: Colors
@@ -608,16 +918,23 @@ export function ProductFormStep5({
                 disabled={
                   isSubmitting ||
                   !isDirty ||
-                  !watchedVariantPricing?.length ||
-                  !watchedVariantPricing.some((v) =>
-                    v.pricingTiers?.some((t) => t.unit_price > 0)
-                  )
+                  ((!watchedVariantPricing?.length ||
+                    !watchedVariantPricing.some((v) =>
+                      v.pricingTiers?.some((t) => t.unit_price > 0)
+                    )) &&
+                    (!watchedVariantQuantities?.length ||
+                      !watchedVariantQuantities.some(
+                        (v) =>
+                          v.available_quantity > 0 ||
+                          v.minimum_threshold >= 0 ||
+                          v.maximum_capacity > 0
+                      )))
                 }
               >
                 {isSubmitting ? (
                   <>
                     <Package className="h-4 w-4 mr-2 animate-spin" />
-                    Saving Pricing Rules...
+                    Saving Pricing & Quantities...
                   </>
                 ) : (
                   "Next: Upload Images"

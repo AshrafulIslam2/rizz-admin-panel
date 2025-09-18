@@ -63,11 +63,27 @@ export const variantPricingSchema = z.object({
     pricingTiers: z.array(pricingSchema).min(1, "At least one pricing tier must be added"),
 })
 
+export const variantQuantitySchema = z.object({
+    colorId: z.number().positive("Color is required"),
+    sizeId: z.number().positive("Size is required"),
+    available_quantity: z.number().min(0, "Available quantity must be 0 or greater"),
+    minimum_threshold: z.number().min(0, "Minimum threshold must be 0 or greater"),
+    maximum_capacity: z.number().min(1, "Maximum capacity must be at least 1"),
+}).refine((data) => data.maximum_capacity >= data.available_quantity, {
+    message: "Maximum capacity must be greater than or equal to available quantity",
+    path: ["maximum_capacity"],
+}).refine((data) => data.available_quantity >= data.minimum_threshold, {
+    message: "Available quantity must be greater than or equal to minimum threshold",
+    path: ["available_quantity"],
+})
+
 export const createProductStep5Schema = z.object({
     // Keep old pricing for backward compatibility or simple products
     pricing: z.array(pricingSchema).optional(),
     // New variant-based pricing
     variantPricing: z.array(variantPricingSchema).optional(),
+    // New variant-based quantities
+    variantQuantities: z.array(variantQuantitySchema).optional(),
 }).refine((data) => {
     // At least one pricing method must be provided
     return (data.pricing && data.pricing.length > 0) || (data.variantPricing && data.variantPricing.length > 0);
