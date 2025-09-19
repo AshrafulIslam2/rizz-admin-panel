@@ -24,6 +24,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -36,7 +43,6 @@ import {
   Upload,
   X,
   Image as ImageIcon,
-  Star,
   Plus,
   Camera,
   FileImage,
@@ -79,9 +85,13 @@ export function ProductFormStep6({
   const [newlyUploadedImages, setNewlyUploadedImages] = useState<string[]>([]);
 
   const form = useForm<CreateProductStep6FormData>({
-    resolver: zodResolver(createProductStep6Schema),
+    resolver: zodResolver(createProductStep6Schema) as any,
     defaultValues: {
-      images: initialData?.images || [],
+      images:
+        initialData?.images?.map((img) => ({
+          ...img,
+          level: img.level || "gallery",
+        })) || [],
     },
   });
 
@@ -174,7 +184,8 @@ export function ProductFormStep6({
             return {
               url: cloudinaryUrl,
               alt: `Product image ${watchedImages.length + index + 1}`,
-              isPrimary: watchedImages.length === 0 && index === 0,
+              isPrimary: false, // No longer automatically setting primary
+              level: "gallery" as const, // Default level with proper typing
             };
           } catch (error) {
             console.error(`Failed to upload ${file.name}:`, error);
@@ -244,16 +255,6 @@ export function ProductFormStep6({
     [handleDragEvents, handleFileSelect]
   );
 
-  // Set primary image
-  const setPrimaryImage = (index: number) => {
-    // Remove primary flag from all images
-    watchedImages.forEach((_, i) => {
-      update(i, { ...watchedImages[i], isPrimary: false });
-    });
-    // Set the selected image as primary
-    update(index, { ...watchedImages[index], isPrimary: true });
-  };
-
   // Remove image
   const removeImage = (index: number) => {
     const imageToRemove = watchedImages[index];
@@ -269,26 +270,19 @@ export function ProductFormStep6({
     );
 
     remove(index);
-
-    // If we removed the primary image and there are still images, make the first one primary
-    if (imageToRemove.isPrimary && watchedImages.length > 1) {
-      const remainingImages = watchedImages.filter((_, i) => i !== index);
-      if (remainingImages.length > 0) {
-        // Find the index of the first remaining image and set it as primary
-        const newPrimaryIndex = index === 0 ? 0 : 0;
-        setTimeout(() => {
-          update(newPrimaryIndex, {
-            ...remainingImages[newPrimaryIndex],
-            isPrimary: true,
-          });
-        }, 0);
-      }
-    }
   };
 
   // Update image alt text
   const updateImageAlt = (index: number, alt: string) => {
     update(index, { ...watchedImages[index], alt });
+  };
+
+  // Update image level
+  const updateImageLevel = (
+    index: number,
+    level: "primary" | "thumbnail" | "gallery" | "detail"
+  ) => {
+    update(index, { ...watchedImages[index], level });
   };
 
   const handleFormSubmit = async (data: CreateProductStep6FormData) => {
@@ -321,6 +315,11 @@ export function ProductFormStep6({
                 ? image.url.replace("http://", "https://")
                 : image.url,
               alt: image.alt || `Product image`,
+              level: (image.level || "gallery") as
+                | "primary"
+                | "thumbnail"
+                | "gallery"
+                | "detail",
             })),
           };
 
@@ -361,8 +360,6 @@ export function ProductFormStep6({
     }
   };
 
-  const primaryImage = watchedImages.find((img) => img.isPrimary);
-
   return (
     <Card>
       <CardHeader>
@@ -379,7 +376,7 @@ export function ProductFormStep6({
       <CardContent>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(handleFormSubmit)}
+            onSubmit={form.handleSubmit(handleFormSubmit as any)}
             className="space-y-6"
           >
             {/* Upload Section */}
@@ -577,42 +574,11 @@ export function ProductFormStep6({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Primary Image Preview */}
-                  {primaryImage && (
-                    <div className="p-4 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                        <span className="font-medium">Primary Image</span>
-                      </div>
-                      <div className="flex gap-4">
-                        <div className="relative">
-                          <img
-                            src={primaryImage.url}
-                            alt={primaryImage.alt || "Primary product image"}
-                            className="w-24 h-24 object-cover rounded-lg border-2 border-yellow-500"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">
-                            This image will be displayed as the main product
-                            image in listings and search results.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* All Images Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {fields.map((field, index) => (
                       <div key={field.id} className="relative group">
-                        <div
-                          className={`relative rounded-lg overflow-hidden border-2 ${
-                            watchedImages[index]?.isPrimary
-                              ? "border-yellow-500"
-                              : "border-gray-200"
-                          }`}
-                        >
+                        <div className="relative rounded-lg overflow-hidden border-2 border-gray-200">
                           <img
                             src={watchedImages[index]?.url}
                             alt={
@@ -621,17 +587,22 @@ export function ProductFormStep6({
                             }
                             className="w-full h-32 object-cover"
                           />
-
-                          {/* Primary Badge */}
-                          {watchedImages[index]?.isPrimary && (
-                            <div className="absolute top-2 left-2">
-                              <Badge className="bg-yellow-500 text-white">
-                                <Star className="h-3 w-3 mr-1 fill-current" />
-                                Primary
-                              </Badge>
-                            </div>
-                          )}
-
+                          {/* Level Badge */}
+                          <div className="absolute top-2 left-2">
+                            <Badge
+                              className={`text-white text-xs ${
+                                watchedImages[index]?.level === "primary"
+                                  ? "bg-red-500"
+                                  : watchedImages[index]?.level === "thumbnail"
+                                  ? "bg-blue-500"
+                                  : watchedImages[index]?.level === "detail"
+                                  ? "bg-green-500"
+                                  : "bg-purple-500"
+                              }`}
+                            >
+                              {watchedImages[index]?.level || "gallery"}
+                            </Badge>
+                          </div>{" "}
                           {/* Actions */}
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button
@@ -656,6 +627,35 @@ export function ProductFormStep6({
                             }
                             className="text-xs"
                           />
+
+                          {/* Level Selection */}
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">
+                              Image Level:
+                            </label>
+                            <Select
+                              value={watchedImages[index]?.level || "gallery"}
+                              onValueChange={(
+                                value:
+                                  | "primary"
+                                  | "thumbnail"
+                                  | "gallery"
+                                  | "detail"
+                              ) => updateImageLevel(index, value)}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select level" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="primary">Primary</SelectItem>
+                                <SelectItem value="thumbnail">
+                                  Thumbnail
+                                </SelectItem>
+                                <SelectItem value="gallery">Gallery</SelectItem>
+                                <SelectItem value="detail">Detail</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
 
                           {/* Cloudinary URL Display */}
                           <div className="p-2 bg-muted/50 rounded border">
@@ -694,19 +694,6 @@ export function ProductFormStep6({
                               />
                             </div>
                           </div>
-
-                          {!watchedImages[index]?.isPrimary && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="w-full text-xs"
-                              onClick={() => setPrimaryImage(index)}
-                            >
-                              <Star className="h-3 w-3 mr-1" />
-                              Set as Primary
-                            </Button>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -747,15 +734,6 @@ export function ProductFormStep6({
                   </div>
                   <div>
                     <span className="text-muted-foreground">
-                      Primary Image:
-                    </span>
-                    <br />
-                    <span className="font-medium">
-                      {primaryImage ? "Set" : "Not set"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">
                       With Descriptions:
                     </span>
                     <br />
@@ -767,6 +745,41 @@ export function ProductFormStep6({
                       }{" "}
                       images
                     </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Levels:</span>
+                    <br />
+                    <div className="text-xs space-y-1">
+                      <div>
+                        Primary:{" "}
+                        {
+                          watchedImages.filter((img) => img.level === "primary")
+                            .length
+                        }
+                      </div>
+                      <div>
+                        Thumbnail:{" "}
+                        {
+                          watchedImages.filter(
+                            (img) => img.level === "thumbnail"
+                          ).length
+                        }
+                      </div>
+                      <div>
+                        Gallery:{" "}
+                        {
+                          watchedImages.filter((img) => img.level === "gallery")
+                            .length
+                        }
+                      </div>
+                      <div>
+                        Detail:{" "}
+                        {
+                          watchedImages.filter((img) => img.level === "detail")
+                            .length
+                        }
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

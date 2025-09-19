@@ -96,6 +96,7 @@ export const imageSchema = z.object({
     url: z.string().url("Invalid image URL"),
     alt: z.string().optional(),
     isPrimary: z.boolean(),
+    level: z.enum(["primary", "thumbnail", "gallery", "detail"]).default("gallery"),
 })
 
 export const createProductStep6Schema = z.object({
