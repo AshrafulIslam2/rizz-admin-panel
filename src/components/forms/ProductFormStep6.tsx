@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -101,6 +101,24 @@ export function ProductFormStep6({
   });
 
   const watchedImages = form.watch("images");
+
+  // Ensure all images have a default level of "gallery"
+  useEffect(() => {
+    const currentImages = form.getValues("images");
+    let hasChanges = false;
+
+    const updatedImages = currentImages.map((image, index) => {
+      if (!image.level) {
+        hasChanges = true;
+        return { ...image, level: "gallery" as const };
+      }
+      return image;
+    });
+
+    if (hasChanges) {
+      form.setValue("images", updatedImages);
+    }
+  }, [watchedImages.length, form]);
 
   // Cloudinary upload function
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -634,6 +652,7 @@ export function ProductFormStep6({
                                 </FormLabel>
                                 <Select
                                   onValueChange={field.onChange}
+                                  defaultValue="gallery"
                                   value={field.value || "gallery"}
                                 >
                                   <FormControl>
