@@ -272,19 +272,6 @@ export function ProductFormStep6({
     remove(index);
   };
 
-  // Update image alt text
-  const updateImageAlt = (index: number, alt: string) => {
-    update(index, { ...watchedImages[index], alt });
-  };
-
-  // Update image level
-  const updateImageLevel = (
-    index: number,
-    level: "primary" | "thumbnail" | "gallery" | "detail"
-  ) => {
-    update(index, { ...watchedImages[index], level });
-  };
-
   const handleFormSubmit = async (data: CreateProductStep6FormData) => {
     try {
       setIsSubmitting(true);
@@ -619,43 +606,60 @@ export function ProductFormStep6({
 
                         {/* Image Controls */}
                         <div className="mt-2 space-y-2">
-                          <Input
-                            placeholder="Image description (optional)"
-                            value={watchedImages[index]?.alt || ""}
-                            onChange={(e) =>
-                              updateImageAlt(index, e.target.value)
-                            }
-                            className="text-xs"
+                          <FormField
+                            control={form.control}
+                            name={`images.${index}.alt`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Image description (optional)"
+                                    {...field}
+                                    className="text-xs"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
 
                           {/* Level Selection */}
-                          <div className="space-y-1">
-                            <label className="text-xs font-medium text-muted-foreground">
-                              Image Level:
-                            </label>
-                            <Select
-                              value={watchedImages[index]?.level || "gallery"}
-                              onValueChange={(
-                                value:
-                                  | "primary"
-                                  | "thumbnail"
-                                  | "gallery"
-                                  | "detail"
-                              ) => updateImageLevel(index, value)}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Select level" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="primary">Primary</SelectItem>
-                                <SelectItem value="thumbnail">
-                                  Thumbnail
-                                </SelectItem>
-                                <SelectItem value="gallery">Gallery</SelectItem>
-                                <SelectItem value="detail">Detail</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          <FormField
+                            control={form.control}
+                            name={`images.${index}.level`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs font-medium text-muted-foreground">
+                                  Image Level:
+                                </FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  value={field.value || "gallery"}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder="Select level" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="primary">
+                                      Primary
+                                    </SelectItem>
+                                    <SelectItem value="thumbnail">
+                                      Thumbnail
+                                    </SelectItem>
+                                    <SelectItem value="gallery">
+                                      Gallery
+                                    </SelectItem>
+                                    <SelectItem value="detail">
+                                      Detail
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
                           {/* Cloudinary URL Display */}
                           <div className="p-2 bg-muted/50 rounded border">
