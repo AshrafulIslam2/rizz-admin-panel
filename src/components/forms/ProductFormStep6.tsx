@@ -46,6 +46,11 @@ import {
   createProductStep6Schema,
   CreateProductStep6FormData,
 } from "@/types/validation";
+import {
+  productApi,
+  BulkAddProductImagesDto,
+  transformImagesToDto,
+} from "@/lib/api/products";
 
 interface ProductFormStep6Props {
   initialData?: CreateProductStep6FormData;
@@ -65,6 +70,13 @@ export function ProductFormStep6({
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadingImages, setUploadingImages] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    [key: string]: number;
+  }>({});
+  const [uploadMessages, setUploadMessages] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newlyUploadedImages, setNewlyUploadedImages] = useState<string[]>([]);
 
   const form = useForm<CreateProductStep6FormData>({
     resolver: zodResolver(createProductStep6Schema),
@@ -80,30 +92,123 @@ export function ProductFormStep6({
 
   const watchedImages = form.watch("images");
 
-  // Handle file selection
-  const handleFileSelect = useCallback(
-    (files: FileList | null) => {
-      if (!files) return;
+  // Cloudinary upload function
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "rizz_leather");
 
-      const newImages: { url: string; alt?: string; isPrimary: boolean }[] = [];
-      Array.from(files).forEach((file, index) => {
-        if (file.type.startsWith("image/")) {
-          const preview = URL.createObjectURL(file);
-          newImages.push({
-            url: preview, // In real app, this would be uploaded to cloud storage
-            alt: `Product image ${watchedImages.length + index + 1}`,
-            isPrimary: watchedImages.length === 0 && index === 0, // First image is primary by default
-          });
+    try {
+      const response = await fetch(
+        "https://api.cloudinary.com/v1_1/dlpjxswlf/image/upload",
+        {
+          method: "POST",
+          body: formData,
         }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.secure_url;
+    } catch (error) {
+      console.error("Cloudinary upload error:", error);
+      throw error;
+    }
+  };
+
+  // Handle file selection with Cloudinary upload
+  const handleFileSelect = useCallback(
+    async (files: FileList | null) => {
+      if (!files || uploading) return;
+
+      setUploading(true);
+      setUploadMessages([]);
+
+      // Validate files
+      const validFiles: File[] = [];
+      const errors: string[] = [];
+
+      Array.from(files).forEach((file) => {
+        if (!file.type.startsWith("image/")) {
+          errors.push(`${file.name}: Not a valid image file`);
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          // 10MB limit
+          errors.push(`${file.name}: File too large (max 10MB)`);
+          return;
+        }
+        validFiles.push(file);
       });
 
-      newImages.forEach((image) => {
-        append(image);
-      });
+      if (errors.length > 0) {
+        setUploadMessages(errors);
+      }
 
-      setIsUploadDialogOpen(false);
+      if (validFiles.length === 0) {
+        setUploading(false);
+        return;
+      }
+
+      try {
+        const uploadPromises = validFiles.map(async (file, index) => {
+          const fileKey = `${file.name}-${Date.now()}-${index}`;
+          setUploadProgress((prev) => ({ ...prev, [fileKey]: 0 }));
+
+          try {
+            // Create preview while uploading
+            const preview = URL.createObjectURL(file);
+
+            // Start upload
+            setUploadProgress((prev) => ({ ...prev, [fileKey]: 50 }));
+            const cloudinaryUrl = await uploadToCloudinary(file);
+
+            // Clean up preview
+            URL.revokeObjectURL(preview);
+
+            setUploadProgress((prev) => ({ ...prev, [fileKey]: 100 }));
+
+            return {
+              url: cloudinaryUrl,
+              alt: `Product image ${watchedImages.length + index + 1}`,
+              isPrimary: watchedImages.length === 0 && index === 0,
+            };
+          } catch (error) {
+            console.error(`Failed to upload ${file.name}:`, error);
+            setUploadProgress((prev) => ({ ...prev, [fileKey]: -1 })); // -1 indicates error
+            throw error;
+          }
+        });
+
+        const uploadedImages = await Promise.all(uploadPromises);
+
+        uploadedImages.forEach((image) => {
+          append(image);
+          // Track newly uploaded images
+          setNewlyUploadedImages((prev) => [...prev, image.url]);
+        });
+
+        setUploadMessages([
+          `Successfully uploaded ${uploadedImages.length} image(s) to Cloudinary!`,
+        ]);
+
+        // Clear upload progress after successful upload
+        setTimeout(() => {
+          setUploadProgress({});
+          setUploadMessages([]);
+        }, 3000);
+      } catch (error) {
+        console.error("Upload failed:", error);
+        setUploadMessages(["Some images failed to upload. Please try again."]);
+      } finally {
+        setUploading(false);
+        setIsUploadDialogOpen(false);
+      }
     },
-    [append, watchedImages.length]
+    [append, watchedImages.length, uploading]
   );
 
   // Handle drag and drop
@@ -158,6 +263,11 @@ export function ProductFormStep6({
       URL.revokeObjectURL(imageToRemove.url);
     }
 
+    // Remove from newly uploaded tracking if it exists
+    setNewlyUploadedImages((prev) =>
+      prev.filter((url) => url !== imageToRemove.url)
+    );
+
     remove(index);
 
     // If we removed the primary image and there are still images, make the first one primary
@@ -181,12 +291,74 @@ export function ProductFormStep6({
     update(index, { ...watchedImages[index], alt });
   };
 
-  const handleFormSubmit = (data: CreateProductStep6FormData) => {
-    // In a real app, you would upload images to cloud storage here
-    // and replace the blob URLs with actual URLs
+  const handleFormSubmit = async (data: CreateProductStep6FormData) => {
+    try {
+      setIsSubmitting(true);
 
-    onComplete(data, productId);
-    onNext();
+      console.log("Form submission started with data:", data);
+      console.log("Product ID:", productId);
+
+      // Check if there are any newly uploaded images to save
+      if (data.images && data.images.length > 0) {
+        console.log("Found images:", data.images);
+
+        // Filter only newly uploaded images (not previously saved)
+        const newImages = data.images.filter(
+          (image) =>
+            newlyUploadedImages.includes(image.url) &&
+            !image.url.startsWith("blob:")
+        );
+
+        console.log("Newly uploaded images to save:", newImages);
+        console.log("All newly uploaded URLs:", newlyUploadedImages);
+
+        if (newImages.length > 0) {
+          // Transform only new images to DTO
+          const bulkImageData = {
+            images: newImages.map((image) => ({
+              product_id: productId,
+              image_url: image.url.startsWith("http://res.cloudinary.com/")
+                ? image.url.replace("http://", "https://")
+                : image.url,
+              alt: image.alt || `Product image`,
+            })),
+          };
+
+          console.log(
+            "Making API call to save new product images:",
+            bulkImageData
+          );
+
+          try {
+            // Save new images to database
+            const result = await productApi.bulkAddProductImages(bulkImageData);
+            console.log("API call successful, result:", result);
+            console.log("Successfully saved new product images to database");
+
+            // Clear newly uploaded images tracking after successful save
+            setNewlyUploadedImages([]);
+          } catch (apiError) {
+            console.error("API call failed:", apiError);
+            throw apiError;
+          }
+        } else {
+          console.log(
+            "No new images to save - all images were previously uploaded"
+          );
+        }
+      } else {
+        console.log("No images to save - data.images is empty or undefined");
+      }
+
+      // Continue with the original flow
+      onComplete(data, productId);
+      onNext();
+    } catch (error) {
+      console.error("Error saving product images:", error);
+      alert("Failed to save product images. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const primaryImage = watchedImages.find((img) => img.isPrimary);
@@ -239,29 +411,107 @@ export function ProductFormStep6({
                     </DialogHeader>
 
                     <div className="space-y-4">
+                      {/* Upload Messages */}
+                      {uploadMessages.length > 0 && (
+                        <div className="space-y-2">
+                          {uploadMessages.map((message, index) => (
+                            <div
+                              key={index}
+                              className={`p-2 rounded text-sm ${
+                                message.includes("Successfully")
+                                  ? "bg-green-50 text-green-700 border border-green-200"
+                                  : "bg-red-50 text-red-700 border border-red-200"
+                              }`}
+                            >
+                              {message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Upload Progress */}
+                      {uploading && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Upload className="h-4 w-4 animate-pulse" />
+                            <span className="text-sm font-medium">
+                              Uploading to Cloudinary...
+                            </span>
+                          </div>
+                          {Object.entries(uploadProgress).map(
+                            ([fileKey, progress]) => (
+                              <div key={fileKey} className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="truncate">
+                                    {fileKey.split("-")[0]}
+                                  </span>
+                                  <span>
+                                    {progress === -1
+                                      ? "Failed"
+                                      : progress === 100
+                                      ? "Complete"
+                                      : `${progress}%`}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-muted rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full transition-all duration-300 ${
+                                      progress === -1
+                                        ? "bg-red-500"
+                                        : progress === 100
+                                        ? "bg-green-500"
+                                        : "bg-blue-500"
+                                    }`}
+                                    style={{
+                                      width: `${
+                                        progress === -1 ? 100 : progress
+                                      }%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
                       {/* Drag and Drop Area */}
                       <div
-                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                          uploading
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer"
+                        } ${
                           dragActive
                             ? "border-primary bg-primary/5"
                             : "border-muted-foreground/25 hover:border-primary/50"
                         }`}
-                        onDragEnter={handleDragEnter}
-                        onDragLeave={handleDragLeave}
-                        onDragOver={handleDragEvents}
-                        onDrop={handleDrop}
-                        onClick={() =>
-                          document.getElementById("image-upload")?.click()
+                        onDragEnter={!uploading ? handleDragEnter : undefined}
+                        onDragLeave={!uploading ? handleDragLeave : undefined}
+                        onDragOver={!uploading ? handleDragEvents : undefined}
+                        onDrop={!uploading ? handleDrop : undefined}
+                        onClick={
+                          !uploading
+                            ? () =>
+                                document.getElementById("image-upload")?.click()
+                            : undefined
                         }
                       >
                         <FileImage className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                         <div className="space-y-2">
                           <p className="text-lg font-medium">
-                            Drop images here or click to browse
+                            {uploading
+                              ? "Uploading..."
+                              : "Drop images here or click to browse"}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Support for JPG, PNG, WebP up to 10MB each
                           </p>
+                          {uploading && (
+                            <p className="text-xs text-blue-600">
+                              Images are being uploaded to Cloudinary...
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -272,6 +522,7 @@ export function ProductFormStep6({
                         multiple
                         accept="image/*"
                         className="hidden"
+                        disabled={uploading}
                         onChange={(e) => handleFileSelect(e.target.files)}
                       />
 
@@ -279,12 +530,22 @@ export function ProductFormStep6({
                       <Button
                         type="button"
                         className="w-full"
+                        disabled={uploading}
                         onClick={() =>
                           document.getElementById("image-upload")?.click()
                         }
                       >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Choose Images
+                        {uploading ? (
+                          <>
+                            <Upload className="h-4 w-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Choose Images
+                          </>
+                        )}
                       </Button>
                     </div>
 
@@ -396,6 +657,44 @@ export function ProductFormStep6({
                             className="text-xs"
                           />
 
+                          {/* Cloudinary URL Display */}
+                          <div className="p-2 bg-muted/50 rounded border">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Cloudinary URL:
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 px-1 text-xs"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    watchedImages[index]?.url || ""
+                                  );
+                                  // You could add a toast notification here
+                                }}
+                              >
+                                Copy
+                              </Button>
+                            </div>
+                            <div className="mt-1">
+                              <input
+                                type="text"
+                                value={watchedImages[index]?.url || ""}
+                                readOnly
+                                className="w-full text-xs bg-transparent border-none p-0 text-blue-600 hover:text-blue-800 cursor-pointer"
+                                onClick={(e) => {
+                                  e.currentTarget.select();
+                                  navigator.clipboard.writeText(
+                                    watchedImages[index]?.url || ""
+                                  );
+                                }}
+                                title="Click to copy URL"
+                              />
+                            </div>
+                          </div>
+
                           {!watchedImages[index]?.isPrimary && (
                             <Button
                               type="button"
@@ -416,6 +715,22 @@ export function ProductFormStep6({
               )}
 
               <FormMessage>{form.formState.errors.images?.message}</FormMessage>
+
+              {/* Submission Status */}
+              {isSubmitting && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4 animate-spin text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      Saving product images to database...
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Please wait while we save your Cloudinary images to the
+                    product database.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Image Summary */}
@@ -458,11 +773,23 @@ export function ProductFormStep6({
             )}
 
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: Pricing
               </Button>
-              <Button type="submit" disabled={fields.length === 0}>
-                Next: Videos
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Upload className="h-4 w-4 mr-2 animate-spin" />
+                    Saving Images...
+                  </>
+                ) : (
+                  "Next: Videos"
+                )}
               </Button>
             </div>
           </form>

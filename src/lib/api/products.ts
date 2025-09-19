@@ -88,6 +88,16 @@ export interface ColorAssignmentDto {
     // Add other properties if needed (like quantity, etc.)
 }
 
+export interface ProductImageDto {
+    product_id: number;
+    image_url: string;
+    alt: string;
+}
+
+export interface BulkAddProductImagesDto {
+    images: ProductImageDto[];
+}
+
 export const productApi = {
     async findAll(): Promise<Product[]> {
         const response = await fetch('http://localhost:3008/products', {
@@ -188,6 +198,32 @@ export const productApi = {
         }
 
         return response.json();
+    },
+
+    async bulkAddProductImages(data: BulkAddProductImagesDto): Promise<any> {
+        console.log("bulkAddProductImages API called with data:", data);
+        console.log("Making request to:", 'http://localhost:3008/product-images/bulk-simple-wrapped');
+
+        const response = await fetch('http://localhost:3008/product-images/bulk-simple-wrapped', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        console.log("API response status:", response.status);
+        console.log("API response ok:", response.ok);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("API error response:", errorData);
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("API success response:", result);
+        return result;
     }
 };
 
@@ -208,4 +244,41 @@ export function transformStep1ToDto(formData: CreateProductStep1FormData): Creat
         weight: formData.weight,
         published: formData.published,
     };
+}
+
+// Transform images to database format
+export function transformImagesToDto(images: any[], productId: number): BulkAddProductImagesDto {
+    console.log("transformImagesToDto called with:", { images, productId });
+
+    const cloudinaryImages = images.filter(image => {
+        const isCloudinaryUrl = image.url && !image.url.startsWith("blob:");
+        console.log("Image filter check:", {
+            url: image.url,
+            isCloudinaryUrl,
+            startsWithBlob: image.url?.startsWith("blob:")
+        });
+        return isCloudinaryUrl;
+    });
+
+    console.log("Filtered cloudinary images:", cloudinaryImages);
+
+    const result = {
+        images: cloudinaryImages.map(image => {
+            // Ensure Cloudinary URLs use https:// instead of http://
+            let imageUrl = image.url;
+            if (imageUrl.startsWith('http://res.cloudinary.com/')) {
+                imageUrl = imageUrl.replace('http://', 'https://');
+                console.log("Converted HTTP to HTTPS:", { original: image.url, converted: imageUrl });
+            }
+
+            return {
+                product_id: productId,
+                image_url: imageUrl,
+                alt: image.alt || `Product image`
+            };
+        })
+    };
+
+    console.log("Final transform result:", result);
+    return result;
 }
