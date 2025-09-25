@@ -104,7 +104,7 @@ export const createProductStep6Schema = z.object({
 })
 
 export const videoSchema = z.object({
-    url: z.string().url("Invalid video URL"),
+    url: z.string(),
     title: z.string().min(1, "Video title is required"),
     isMain: z.boolean(),
 })

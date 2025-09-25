@@ -92,6 +92,7 @@ export function ProductFormStep7({
   const [ytLoading, setYtLoading] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytDisconnectLoading, setYtDisconnectLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const mountedRef = useRef(true);
 
@@ -196,9 +197,34 @@ export function ProductFormStep7({
     }
   };
 
-  const handleFormSubmit = (data: CreateProductStep7FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const handleFormSubmit = async (data: CreateProductStep7FormData) => {
+    console.log("🚀 ~ handleFormSubmit ~ data:", data);
+    const payload = {
+      productId,
+      mainVideo: data.mainVideo,
+      cuttingVideo: data.cuttingVideo,
+      stitchingVideo: data.stitchingVideo,
+      assemblyVideo: data.assemblyVideo,
+      finishingVideo: data.finishingVideo,
+    };
+
+    console.log("🚀 ~ handleFormSubmit ~ payload:", payload);
+
+    setIsSubmitting(true);
+    try {
+      // Call backend to embed product videos
+      const resp = await youtubeUploadApi.embedProductVideos(payload as any);
+      console.log("embedProductVideos response:", resp);
+
+      // notify parent that this step is complete and proceed
+      onComplete(data, productId);
+      onNext();
+    } catch (e: any) {
+      console.error("Failed to embed product videos:", e);
+      setYtError(e?.message || "Failed to save product videos");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const videoSections = [
@@ -392,10 +418,17 @@ export function ProductFormStep7({
             </div>
 
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: Images
               </Button>
-              <Button type="submit">Next: Features</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Next: Features"}
+              </Button>
             </div>
           </form>
         </Form>

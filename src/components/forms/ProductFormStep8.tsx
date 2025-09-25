@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm, useFieldArray } from "react-hook-form";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ import {
   createProductStep8Schema,
   CreateProductStep8FormData,
 } from "@/types/validation";
+import productFeatureApi from "@/lib/api/productfeature";
 
 interface ProductFormStep8Props {
   initialData?: CreateProductStep8FormData;
@@ -60,9 +62,38 @@ export function ProductFormStep8({
     name: "features",
   });
 
-  const handleFormSubmit = (data: CreateProductStep8FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleFormSubmit = async (data: CreateProductStep8FormData) => {
+    const modifiedData = { productId, ...data };
+    console.log("🚀 ~ handleFormSubmit ~ modifiedData:", modifiedData);
+
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      // Only call bulk API if the form is dirty
+      if (form.formState.isDirty) {
+        const payload = {
+          productId,
+          // map form features to backend shape { name, value }
+          features: data.features.map((f) => ({
+            name: f.title,
+            value: f.description,
+          })),
+        };
+        console.log("Calling productFeatureApi.bulk with", payload);
+        await productFeatureApi.bulk(payload as any);
+      }
+
+      onComplete(modifiedData, productId);
+      onNext();
+    } catch (e: any) {
+      console.error("Failed to save features:", e);
+      setSubmitError(e?.message || "Failed to save features");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addFeature = () => {
@@ -243,12 +274,24 @@ export function ProductFormStep8({
               </div>
             )}
 
+            {submitError && (
+              <div className="text-sm text-destructive">{submitError}</div>
+            )}
+
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: Videos
               </Button>
-              <Button type="submit" disabled={fields.length === 0}>
-                Next: SEO & Meta Tags
+              <Button
+                type="submit"
+                disabled={isSubmitting || fields.length === 0}
+              >
+                {isSubmitting ? "Saving..." : "Next: SEO & Meta Tags"}
               </Button>
             </div>
           </form>

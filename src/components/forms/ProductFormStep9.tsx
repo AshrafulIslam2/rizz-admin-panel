@@ -44,6 +44,8 @@ import {
   createProductStep9Schema,
   CreateProductStep9FormData,
 } from "@/types/validation";
+import productMetatagsApi from "@/lib/api/productmetatags";
+import { useState } from "react";
 
 interface ProductFormStep9Props {
   initialData?: CreateProductStep9FormData;
@@ -76,10 +78,27 @@ export function ProductFormStep9({
       changefreq: initialData?.changefreq || "weekly",
     },
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleFormSubmit = (data: CreateProductStep9FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const handleFormSubmit = async (data: CreateProductStep9FormData) => {
+    console.log("🚀 ~ handleFormSubmit ~ data:", data);
+    const modifiedData = { productId, ...data };
+    console.log("🚀 ~ handleFormSubmit ~ modifiedData:", modifiedData);
+    try {
+      // Only call bulk API if the form is dirty
+
+      console.log("Calling productMetatagsApi.create with", modifiedData);
+      await productMetatagsApi.create(modifiedData as any);
+
+      onComplete(modifiedData, productId);
+      onNext();
+    } catch (e: any) {
+      console.error("Failed to save features:", e);
+      setSubmitError(e?.message || "Failed to save features");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const watchedMetaTitle = form.watch("metaTitle");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm, useFieldArray } from "react-hook-form";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 interface ProductFormStep10Props {
@@ -41,6 +42,7 @@ import {
   createProductStep10Schema,
   CreateProductStep10FormData,
 } from "@/types/validation";
+import productFaqsApi from "@/lib/api/productfaqs";
 
 export function ProductFormStep10({
   initialData,
@@ -66,9 +68,62 @@ export function ProductFormStep10({
     name: "faqs",
   });
 
-  const handleFormSubmit = (data: CreateProductStep10FormData) => {
-    onComplete(data, productId);
-    onNext();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleFormSubmit = async (data: CreateProductStep10FormData) => {
+    console.log("🚀 ~ handleFormSubmit ~ data:", data);
+    const modifiedData = {
+      ...data,
+      faqs: data.faqs.filter(
+        (faq) => faq.question.trim() !== "" && faq.answer.trim() !== ""
+      ),
+    };
+    console.log("🚀 ~ handleFormSubmit ~ modifiedData:", modifiedData);
+
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      console.log(
+        "ProductFormStep10 submit - isDirty:",
+        form.formState.isDirty,
+        "hasInitialData:",
+        !!initialData
+      );
+
+      // Call bulk API if form is dirty or when creating a new product
+      if (form.formState.isDirty || !initialData) {
+        const payload = {
+          productId,
+          faqs: modifiedData.faqs.map((f) => ({
+            question: f.question,
+            answer: f.answer,
+          })),
+        };
+        console.log("Calling productFaqsApi.bulk with", payload);
+        const response = await productFaqsApi.bulk(payload as any);
+        console.log("🚀 ~ handleFormSubmit ~ response:", response);
+
+        // mark form as pristine with current values
+        try {
+          form.reset(modifiedData);
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        console.log(
+          "Skipping productFaqsApi.bulk - form not dirty and initial data present"
+        );
+      }
+
+      onComplete(modifiedData, productId);
+      onNext();
+    } catch (e: any) {
+      console.error("Failed to save FAQs:", e);
+      setSubmitError(e?.message || "Failed to save FAQs");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addFaq = () => {
@@ -306,16 +361,25 @@ export function ProductFormStep10({
               </div>
             )}
 
+            {submitError && (
+              <div className="text-sm text-destructive">{submitError}</div>
+            )}
+
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={onPrevious}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPrevious}
+                disabled={isSubmitting}
+              >
                 Previous: SEO & Meta Tags
               </Button>
               <Button
                 type="submit"
-                disabled={fields.length === 0}
+                disabled={isSubmitting || fields.length === 0}
                 className="bg-green-600 hover:bg-green-700"
               >
-                Create Product
+                {isSubmitting ? "Creating..." : "Create Product"}
               </Button>
             </div>
           </form>

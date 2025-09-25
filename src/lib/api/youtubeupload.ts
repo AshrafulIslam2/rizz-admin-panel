@@ -26,6 +26,46 @@ export const youtubeUploadApi = {
         const data = await response.json();
         return data as YouTubeOauthStatus;
     },
+
+    async embedProductVideos(payload: {
+        productId: number;
+        mainVideo: { url: string; title: string; isMain: boolean };
+        cuttingVideo: { url: string; title: string; isMain: boolean };
+        stitchingVideo: { url: string; title: string; isMain: boolean };
+        assemblyVideo: { url: string; title: string; isMain: boolean };
+        finishingVideo: { url: string; title: string; isMain: boolean };
+    }): Promise<any> {
+        const response = await fetch("http://localhost:3008/product-videos/embed", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+        });
+
+        const text = await response.text().catch(() => "");
+        let body: any = null;
+        try {
+            body = text ? JSON.parse(text) : null;
+        } catch (e) {
+            body = text;
+        }
+
+        if (!response.ok) {
+            const message = body?.message || body || response.statusText || `HTTP error! status: ${response.status}`;
+            console.error("youtubeupload.embedProductVideos failed:", { status: response.status, body, message });
+            throw new Error(message);
+        }
+
+        if (!text) return { message: "OK" };
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return { message: String(text) };
+        }
+    },
     async disconnect(): Promise<{ message?: string }> {
         // Include credentials in case the backend relies on cookies/sessions
         const response = await fetch("http://localhost:3008/youtube/oauth/disconnect", {
