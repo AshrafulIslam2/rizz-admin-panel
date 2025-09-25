@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
+
 import {
   Card,
   CardContent,
@@ -32,11 +33,13 @@ import {
   Settings,
   Package,
   CheckCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   createProductStep7Schema,
   CreateProductStep7FormData,
 } from "@/types/validation";
+import youtubeUploadApi from "@/lib/api/youtubeupload";
 
 interface ProductFormStep7Props {
   initialData?: CreateProductStep7FormData;
@@ -84,6 +87,115 @@ export function ProductFormStep7({
     },
   });
 
+  // YouTube connection state
+  const [ytStatus, setYtStatus] = useState<any | null>(null);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [ytDisconnectLoading, setYtDisconnectLoading] = useState(false);
+
+  const mountedRef = useRef(true);
+
+  const fetchYtStatus = async () => {
+    setYtLoading(true);
+    try {
+      const youtubeUploadApi = (await import("@/lib/api/youtubeupload"))
+        .default;
+      const data = await youtubeUploadApi.getOauthStatus();
+      if (!mountedRef.current) return;
+      setYtStatus(data);
+      setYtError(null);
+      return data;
+    } catch (err: any) {
+      if (!mountedRef.current) return;
+      setYtStatus(null);
+      setYtError(err?.message || "Failed to load YouTube status");
+      return null;
+    } finally {
+      if (!mountedRef.current) return;
+      setYtLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    fetchYtStatus();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const handleConnect = () => {
+    const width = 600;
+    const height = 700;
+
+    // Center position calculate
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    // Open the backend OAuth start route in a new tab/window.
+    // This endpoint will redirect the user to Google's OAuth consent screen.
+    const startUrl = "http://localhost:3008/youtube/oauth/start";
+
+    const popup = window.open(
+      startUrl,
+      "YouTubeAuthPopup",
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`
+    );
+
+    if (popup) {
+      popup.focus();
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setYtDisconnectLoading(true);
+    try {
+      const mod: any = await import("@/lib/api/youtubeupload");
+
+      // Prefer default export, then named export, then module itself
+      const api: any = mod?.default ?? mod?.youtubeUploadApi ?? mod;
+
+      if (api && typeof api.disconnect === "function") {
+        await api.disconnect();
+      } else {
+        // Fallback: call endpoint directly
+        const resp = await fetch(
+          "http://localhost:3008/youtube/oauth/disconnect",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            credentials: "include",
+          }
+        );
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          let body: any = null;
+          try {
+            body = text ? JSON.parse(text) : null;
+          } catch (e) {
+            body = text;
+          }
+          throw new Error(
+            body?.message ||
+              body ||
+              resp.statusText ||
+              `HTTP error ${resp.status}`
+          );
+        }
+      }
+
+      // Refresh status after disconnect
+      await fetchYtStatus();
+    } catch (e: any) {
+      console.error("Disconnect failed:", e);
+      setYtError(e?.message || "Failed to disconnect YouTube account");
+    } finally {
+      setYtDisconnectLoading(false);
+    }
+  };
+
   const handleFormSubmit = (data: CreateProductStep7FormData) => {
     onComplete(data, productId);
     onNext();
@@ -129,15 +241,62 @@ export function ProductFormStep7({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Video className="w-6 h-6" />
-          Product Videos
-        </CardTitle>
-        <CardDescription>
-          Upload videos showcasing your product and manufacturing process. These
-          videos help customers understand your product better.
-        </CardDescription>
+      <CardHeader className="flex items-start justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="w-6 h-6" />
+            Product Videos
+          </CardTitle>
+          <CardDescription>
+            Upload videos showcasing your product and manufacturing process.
+            These videos help customers understand your product better.
+          </CardDescription>
+        </div>
+
+        {/* Global Connect YouTube button */}
+        <div className="mt-1 flex items-center gap-2">
+          {ytStatus?.channelId ? (
+            <>
+              <Button type="button" size="sm" variant="ghost">
+                Connected • {ytStatus.channelName}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={handleDisconnect}
+                disabled={ytDisconnectLoading}
+              >
+                {ytDisconnectLoading ? "Disconnecting..." : "Disconnect"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleConnect}
+            >
+              {ytLoading ? "Connecting..." : "Connect YouTube"}
+            </Button>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={fetchYtStatus}
+            disabled={ytLoading}
+            aria-label="Refresh YouTube status"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${ytLoading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
+        {ytError && (
+          <div className="mt-2 text-sm text-destructive">{ytError}</div>
+        )}
       </CardHeader>
       <CardContent>
         <Form {...form}>
