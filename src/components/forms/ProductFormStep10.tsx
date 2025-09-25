@@ -2,6 +2,7 @@
 
 import { useForm, useFieldArray } from "react-hook-form";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 interface ProductFormStep10Props {
@@ -51,6 +52,7 @@ export function ProductFormStep10({
   onNext,
   onPrevious,
 }: ProductFormStep10Props) {
+  const router = useRouter();
   const form = useForm<CreateProductStep10FormData>({
     resolver: zodResolver(createProductStep10Schema),
     defaultValues: {
@@ -110,12 +112,25 @@ export function ProductFormStep10({
         } catch (e) {
           // ignore
         }
+
+        // Determine product id from response or fallback to prop
+        const returnedId =
+          (response &&
+            (response.productId || response.id || response.data?.id)) ||
+          productId;
+
+        // Redirect to product details page
+        if (returnedId) {
+          router.push(`/products/${returnedId}`);
+          return;
+        }
       } else {
         console.log(
           "Skipping productFaqsApi.bulk - form not dirty and initial data present"
         );
       }
 
+      // If no redirect happened above, call onComplete/onNext as a fallback
       onComplete(modifiedData, productId);
       onNext();
     } catch (e: any) {
