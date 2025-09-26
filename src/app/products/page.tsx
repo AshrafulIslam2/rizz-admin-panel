@@ -56,6 +56,7 @@ export default function ProductListPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Fetch products on component mount
   useEffect(() => {
@@ -107,6 +108,31 @@ export default function ProductListPage() {
       </div>
     );
   }
+  // Delete handler
+  const handleDelete = async (id: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this product? This action cannot be undone."
+      )
+    )
+      return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`http://localhost:3008/products/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || res.statusText || `HTTP ${res.status}`);
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (e: any) {
+      alert("Delete failed: " + (e?.message || e));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
       <div className="flex items-center justify-between">
@@ -176,13 +202,16 @@ export default function ProductListPage() {
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
                       <div>
-                        <div className="font-medium">{product.title}</div>
-                        <div className="text-sm text-muted-foreground">
-                          ID: {product.id} • Created:{" "}
-                          {formatDate(product.createdAt)}
-                        </div>
+                        <Link href={`products/${product.id}`}>
+                          <div className="font-medium">{product.title}</div>
+                          <div className="text-sm text-muted-foreground">
+                            ID: {product.id} • Created:{" "}
+                            {formatDate(product.createdAt)}
+                          </div>
+                        </Link>
                       </div>
                     </TableCell>
+
                     <TableCell>
                       <code className="bg-muted px-2 py-1 rounded text-sm">
                         {product.sku}
@@ -266,8 +295,16 @@ export default function ProductListPage() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
+                          disabled={deletingId === product.id}
+                          onClick={() => handleDelete(product.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {deletingId === product.id ? (
+                            <span className="animate-spin mr-1">
+                              <Trash2 className="h-4 w-4" />
+                            </span>
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>

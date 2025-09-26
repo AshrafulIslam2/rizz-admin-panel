@@ -73,18 +73,23 @@ export function ProductFormStep8({
     setIsSubmitting(true);
     try {
       // Only call bulk API if the form is dirty
-      if (form.formState.isDirty) {
-        const payload = {
-          productId,
-          // map form features to backend shape { name, value }
-          features: data.features.map((f) => ({
-            name: f.title,
-            value: f.description,
-          })),
-        };
-        console.log("Calling productFeatureApi.bulk with", payload);
-        await productFeatureApi.bulk(payload as any);
+
+      if (modifiedData.features.length > 0) {
+        // Use bulk API to add all selected categories at once
+        await productFeatureApi.bulk(modifiedData as any);
       }
+      // if (form.formState.isDirty) {
+      //   const payload = {
+      //     productId,
+      //     // map form features to backend shape { name, value }
+      //     features: data.features.map((f) => ({
+      //       name: f.title,
+      //       value: f.description,
+      //     })),
+      //   };
+      // console.log("Calling productFeatureApi.bulk with", payload);
+      // await productFeatureApi.bulk(payload as any);
+      // }
 
       onComplete(modifiedData, productId);
       onNext();
