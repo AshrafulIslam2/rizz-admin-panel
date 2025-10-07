@@ -220,15 +220,22 @@ export const ordersApi = {
     },
 
     /**
-     * Update order customer information
+     * Update order customer/shipping information
      */
-    async updateOrderCustomer(orderId: string, customer: OrderCustomer): Promise<Order> {
-        const response = await fetch(`http://localhost:3008/orders/${orderId}/customer`, {
-            method: 'PATCH',
+    async updateOrderShipping(
+        orderId: number,
+        data: {
+            fullName?: string;
+            phone?: string;
+            email?: string;
+        }
+    ): Promise<ApiOrder> {
+        const response = await fetch(`http://localhost:3008/orders/shipping/${orderId}`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ customer }),
+            body: JSON.stringify(data),
         });
 
         if (!response.ok) {
@@ -247,7 +254,7 @@ export const ordersApi = {
         shippingAddress: OrderShippingAddress
     ): Promise<Order> {
         const response = await fetch(`http://localhost:3008/orders/${orderId}/shipping-address`, {
-            method: 'PATCH',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },

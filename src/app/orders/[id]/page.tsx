@@ -147,26 +147,46 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     setIsEditingStatus(false);
   };
 
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     if (!order) return;
-    setOrder({
-      ...order,
-      user: {
-        ...order.user,
-        name: customerForm.name,
+
+    try {
+      setLoading(true);
+      // Update customer/shipping information
+      await ordersApi.updateOrderShipping(order.shipping.id, {
+        fullName: customerForm.name,
+        phone: customerForm.phone,
         email: customerForm.email,
-      },
-      shipping: { ...order.shipping, phone: customerForm.phone },
-    });
-    setIsEditingCustomer(false);
-    // Add API call here to save customer data
+      });
+
+      // Fetch the complete updated order details
+      const updatedOrder = await ordersApi.getOrderById(id);
+      setOrder(updatedOrder);
+      setIsEditingCustomer(false);
+      alert("Customer information updated successfully!");
+    } catch (err) {
+      console.error("Error updating customer information:", err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to update customer information"
+      );
+      // Revert to original data on error
+      setCustomerForm({
+        name: order.shipping.fullName,
+        email: order.shipping.email,
+        phone: order.shipping.phone,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelCustomer = () => {
     if (!order) return;
     setCustomerForm({
-      name: order.user.name,
-      email: order.user.email,
+      name: order.shipping.fullName,
+      email: order.shipping.email,
       phone: order.shipping.phone,
     });
     setIsEditingCustomer(false);
@@ -396,8 +416,8 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
             <div class="info-section">
               <div class="info-box">
                 <h3>Bill To</h3>
-                <p><strong>${order.user.name}</strong></p>
-                <p>${order.user.email}</p>
+                <p><strong>${order.shipping.fullName}</strong></p>
+                <p>${order.shipping.email}</p>
                 <p>${order.shipping.phone}</p>
               </div>
               <div class="info-box">
@@ -605,6 +625,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                     onChange={(e) =>
                       setCustomerForm({ ...customerForm, name: e.target.value })
                     }
+                    disabled={loading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -619,6 +640,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                         email: e.target.value,
                       })
                     }
+                    disabled={loading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -632,17 +654,27 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                         phone: e.target.value,
                       })
                     }
+                    disabled={loading}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleSaveCustomer} size="sm">
-                    <Save className="w-4 h-4 mr-2" />
+                  <Button
+                    onClick={handleSaveCustomer}
+                    size="sm"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
                     Save
                   </Button>
                   <Button
                     variant="outline"
                     onClick={handleCancelCustomer}
                     size="sm"
+                    disabled={loading}
                   >
                     Cancel
                   </Button>
@@ -652,11 +684,11 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
               <>
                 <div>
                   <p className="text-sm text-gray-500">Name</p>
-                  <p className="font-medium">{order.user.name}</p>
+                  <p className="font-medium">{order.shipping.fullName}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{order.user.email}</p>
+                  <p className="font-medium">{order.shipping.email}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Phone</p>
