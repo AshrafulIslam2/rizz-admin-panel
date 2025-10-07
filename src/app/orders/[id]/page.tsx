@@ -26,6 +26,7 @@ import {
   Save,
   Trash2,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { ordersApi, ApiOrder } from "@/lib/api/orders";
 
@@ -87,28 +88,28 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
   }, [id]);
 
   const statusOptions = [
-    { value: "pending", label: "Pending" },
-    { value: "confirmed", label: "Confirmed" },
-    { value: "processing", label: "Processing" },
-    { value: "out-for-delivery", label: "Out for Delivery" },
-    { value: "delivered", label: "Delivered" },
-    { value: "cancelled", label: "Cancelled" },
+    { value: "PENDING", label: "Pending" },
+    { value: "CONFIRMED", label: "Confirmed" },
+    { value: "PROCESSING", label: "Processing" },
+    { value: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
+    { value: "DELIVERED", label: "Delivered" },
+    { value: "CANCELLED", label: "Cancelled" },
   ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "delivered":
-      case "completed":
+      case "DELIVERED":
+      case "COMPLETED":
         return "bg-green-500";
-      case "pending":
+      case "PENDING":
         return "bg-yellow-500";
-      case "confirmed":
+      case "CONFIRMED":
         return "bg-cyan-500";
-      case "processing":
+      case "PROCESSING":
         return "bg-blue-500";
-      case "out-for-delivery":
+      case "OUT_FOR_DELIVERY    ":
         return "bg-purple-500";
-      case "cancelled":
+      case "CANCELLED":
         return "bg-red-500";
       default:
         return "bg-gray-500";
@@ -211,6 +212,255 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     );
   };
 
+  const handlePrintInvoice = () => {
+    if (!order) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const subtotal = order.items.reduce(
+      (acc, item) => acc + item.price * item.quantity,
+      0
+    );
+
+    const invoiceHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice - ${order.orderCode}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 40px;
+              color: #333;
+            }
+            .invoice-container {
+              max-width: 800px;
+              margin: 0 auto;
+              background: white;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 30px;
+              padding-bottom: 20px;
+              border-bottom: 2px solid #333;
+            }
+            .company-info {
+              display: flex;
+              align-items: center;
+              gap: 15px;
+            }
+            .logo {
+              width: 80px;
+              height: 80px;
+              object-fit: contain;
+            }
+            .company-name {
+              font-size: 28px;
+              font-weight: bold;
+              color: #333;
+            }
+            .invoice-title {
+              text-align: right;
+            }
+            .invoice-title h1 {
+              font-size: 32px;
+              color: #333;
+              margin-bottom: 5px;
+            }
+            .invoice-number {
+              font-size: 14px;
+              color: #666;
+            }
+            .info-section {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 30px;
+              margin-bottom: 30px;
+            }
+            .info-box {
+              padding: 15px;
+              background: #f9f9f9;
+              border-radius: 5px;
+            }
+            .info-box h3 {
+              font-size: 14px;
+              color: #666;
+              margin-bottom: 10px;
+              text-transform: uppercase;
+            }
+            .info-box p {
+              margin: 5px 0;
+              line-height: 1.5;
+            }
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+            }
+            .items-table thead {
+              background: #333;
+              color: white;
+            }
+            .items-table th {
+              padding: 12px;
+              text-align: left;
+              font-weight: 600;
+            }
+            .items-table td {
+              padding: 12px;
+              border-bottom: 1px solid #ddd;
+            }
+            .items-table tbody tr:hover {
+              background: #f9f9f9;
+            }
+            .text-right {
+              text-align: right;
+            }
+            .totals-section {
+              margin-left: auto;
+              width: 300px;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 10px 0;
+              border-bottom: 1px solid #ddd;
+            }
+            .total-row.final {
+              font-size: 18px;
+              font-weight: bold;
+              border-top: 2px solid #333;
+              border-bottom: 2px solid #333;
+              margin-top: 10px;
+            }
+            .footer {
+              margin-top: 50px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              text-align: center;
+              color: #666;
+              font-size: 12px;
+            }
+            @media print {
+              body {
+                padding: 20px;
+              }
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-container">
+            <div class="header">
+              <div class="company-info">
+                <img src="/leather-goods-store-bangladesh-logo.png" alt="Rizz Leather" class="logo" />
+                <div class="company-name">Rizz Leather</div>
+              </div>
+              <div class="invoice-title">
+                <h1>INVOICE</h1>
+                <div class="invoice-number">Order #${order.orderCode}</div>
+                <div class="invoice-number">Date: ${new Date(
+                  order.createdAt
+                ).toLocaleDateString()}</div>
+              </div>
+            </div>
+
+            <div class="info-section">
+              <div class="info-box">
+                <h3>Bill To</h3>
+                <p><strong>${order.user.name}</strong></p>
+                <p>${order.user.email}</p>
+                <p>${order.shipping.phone}</p>
+              </div>
+              <div class="info-box">
+                <h3>Ship To</h3>
+                <p>${order.shipping.address1}</p>
+                <p>Delivery Area: ${order.shipping.deliveryArea}</p>
+              </div>
+            </div>
+
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Color</th>
+                  <th>Size</th>
+                  <th class="text-right">Qty</th>
+                  <th class="text-right">Price</th>
+                  <th class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items
+                  .map(
+                    (item) => `
+                  <tr>
+                    <td>${
+                      item.product?.title || `Product ID: ${item.productId}`
+                    }</td>
+                    <td>${item.color?.name || item.colorId}</td>
+                    <td>${item.size?.value || item.sizeId}</td>
+                    <td class="text-right">${item.quantity}</td>
+                    <td class="text-right">৳${item.price.toFixed(2)}</td>
+                    <td class="text-right">৳${(
+                      item.price * item.quantity
+                    ).toFixed(2)}</td>
+                  </tr>
+                `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+
+            <div class="totals-section">
+              <div class="total-row">
+                <span>Subtotal:</span>
+                <span>৳${subtotal.toFixed(2)}</span>
+              </div>
+              <div class="total-row">
+                <span>Delivery Charge:</span>
+                <span>৳${order.deliveryCharge.toFixed(2)}</span>
+              </div>
+              <div class="total-row">
+                <span>Delivery Area:</span>
+                <span>${order.shipping.deliveryArea}</span>
+              </div>
+              <div class="total-row final">
+                <span>Total:</span>
+                <span>৳${order.total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p>Payment Method: Cash on Delivery</p>
+              <p>Thank you for your business!</p>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(invoiceHTML);
+    printWindow.document.close();
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -250,6 +500,10 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={handlePrintInvoice} variant="default" size="sm">
+            <Printer className="w-4 h-4 mr-2" />
+            Print Invoice
+          </Button>
           {isEditingStatus ? (
             <>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
