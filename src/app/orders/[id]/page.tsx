@@ -192,18 +192,54 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     setIsEditingCustomer(false);
   };
 
-  const handleSaveShipping = () => {
+  const handleSaveShipping = async () => {
     if (!order) return;
-    setOrder({
-      ...order,
-      shipping: {
-        ...order.shipping,
+
+    try {
+      setLoading(true);
+
+      // Calculate delivery charge based on delivery area
+      let deliveryCharge = order.deliveryCharge; // Keep existing if area hasn't changed
+
+      // Check if delivery area has changed
+      if (shippingForm.deliveryArea !== order.shipping.deliveryArea) {
+        // Set delivery charge based on delivery area
+        if (shippingForm.deliveryArea.toLowerCase().includes("inside dhaka")) {
+          deliveryCharge = 60; // Inside Dhaka charge
+        } else if (
+          shippingForm.deliveryArea.toLowerCase().includes("outside dhaka")
+        ) {
+          deliveryCharge = 120; // Outside Dhaka charge
+        } else {
+          deliveryCharge = 80; // Default charge for other areas
+        }
+      }
+
+      // Update shipping address with delivery area and charge
+      await ordersApi.updateOrderShippingAddress(order.shipping.id, {
         address1: shippingForm.address,
         deliveryArea: shippingForm.deliveryArea,
-      },
-    });
-    setIsEditingShipping(false);
-    // Add API call here to save shipping address
+        deliveryCharge: deliveryCharge,
+      });
+
+      // Fetch the complete updated order details
+      const updatedOrder = await ordersApi.getOrderById(id);
+      setOrder(updatedOrder);
+      setIsEditingShipping(false);
+      alert("Shipping address updated successfully!");
+    } catch (err) {
+      console.error("Error updating shipping address:", err);
+      alert(
+        err instanceof Error ? err.message : "Failed to update shipping address"
+      );
+      // Revert to original data on error
+      setShippingForm({
+        address: order.shipping.address1,
+        deliveryArea: order.shipping.deliveryArea,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelShipping = () => {
@@ -734,6 +770,7 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                       });
                     }}
                     placeholder="Enter full address"
+                    disabled={loading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -748,17 +785,27 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                       });
                     }}
                     placeholder="e.g. Inside Dhaka, Outside Dhaka"
+                    disabled={loading}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleSaveShipping} size="sm">
-                    <Save className="w-4 h-4 mr-2" />
+                  <Button
+                    onClick={handleSaveShipping}
+                    size="sm"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
                     Save
                   </Button>
                   <Button
                     variant="outline"
                     onClick={handleCancelShipping}
                     size="sm"
+                    disabled={loading}
                   >
                     Cancel
                   </Button>

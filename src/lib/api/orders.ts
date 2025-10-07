@@ -247,18 +247,22 @@ export const ordersApi = {
     },
 
     /**
-     * Update order shipping address
+     * Update order shipping address with delivery area and charge
      */
     async updateOrderShippingAddress(
-        orderId: string,
-        shippingAddress: OrderShippingAddress
-    ): Promise<Order> {
-        const response = await fetch(`http://localhost:3008/orders/${orderId}/shipping-address`, {
+        orderId: number,
+        data: {
+            address1?: string;
+            deliveryArea?: string;
+            deliveryCharge?: number;
+        }
+    ): Promise<ApiOrder> {
+        const response = await fetch(`http://localhost:3008/orders/shipping/${orderId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ shippingAddress }),
+            body: JSON.stringify(data),
         });
 
         if (!response.ok) {
