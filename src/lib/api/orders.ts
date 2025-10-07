@@ -202,9 +202,9 @@ export const ordersApi = {
     /**
      * Update order status
      */
-    async updateOrderStatus(orderId: string, status: string): Promise<Order> {
+    async updateOrderStatus(orderId: number, status: string): Promise<ApiOrder> {
         const response = await fetch(`http://localhost:3008/orders/${orderId}/status`, {
-            method: 'PATCH',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },

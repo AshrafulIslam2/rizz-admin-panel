@@ -65,8 +65,8 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
         const data = await ordersApi.getOrderById(id);
         setOrder(data);
         setCustomerForm({
-          name: data.user.name,
-          email: data.user.email,
+          name: data.shipping.fullName,
+          email: data.shipping.email,
           phone: data.shipping.phone,
         });
         setShippingForm({
@@ -116,11 +116,29 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     }
   };
 
-  const handleSaveStatus = () => {
+  const handleSaveStatus = async () => {
     if (!order) return;
-    setOrder({ ...order, status: selectedStatus });
-    setIsEditingStatus(false);
-    // Add API call here to save status
+
+    try {
+      setLoading(true);
+      // Update the status
+      await ordersApi.updateOrderStatus(order.id, selectedStatus);
+
+      // Fetch the complete updated order details
+      const updatedOrder = await ordersApi.getOrderById(id);
+      setOrder(updatedOrder);
+      setIsEditingStatus(false);
+      alert("Order status updated successfully!");
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert(
+        err instanceof Error ? err.message : "Failed to update order status"
+      );
+      // Revert to original status on error
+      setSelectedStatus(order.status);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelStatus = () => {
@@ -506,7 +524,11 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
           </Button>
           {isEditingStatus ? (
             <>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <Select
+                value={selectedStatus}
+                onValueChange={setSelectedStatus}
+                disabled={loading}
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -518,10 +540,19 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <Button onClick={handleSaveStatus} size="sm">
-                <Save className="w-4 h-4" />
+              <Button onClick={handleSaveStatus} size="sm" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
               </Button>
-              <Button variant="outline" onClick={handleCancelStatus} size="sm">
+              <Button
+                variant="outline"
+                onClick={handleCancelStatus}
+                size="sm"
+                disabled={loading}
+              >
                 Cancel
               </Button>
             </>
