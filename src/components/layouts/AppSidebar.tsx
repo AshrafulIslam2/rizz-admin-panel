@@ -29,13 +29,16 @@ import {
   Home,
   Users,
   Settings,
-  BarChart3,
+  ShoppingCart,
 } from "lucide-react";
 
 export function AppSidebar() {
   const pathname = usePathname();
   const [isProductsOpen, setIsProductsOpen] = useState(
     pathname.startsWith("/products")
+  );
+  const [isOrdersOpen, setIsOrdersOpen] = useState(
+    pathname.startsWith("/orders")
   );
 
   const menuItems = [
@@ -64,14 +67,23 @@ export function AppSidebar() {
       ],
     },
     {
+      title: "Orders",
+      icon: ShoppingCart,
+      isCollapsible: true,
+      isOpen: isOrdersOpen,
+      onToggle: () => setIsOrdersOpen(!isOrdersOpen),
+      subItems: [
+        {
+          title: "Order List",
+          url: "/orders",
+          icon: List,
+        },
+      ],
+    },
+    {
       title: "Customers",
       url: "/customers",
       icon: Users,
-    },
-    {
-      title: "Analytics",
-      url: "/analytics",
-      icon: BarChart3,
     },
     {
       title: "Settings",
@@ -97,7 +109,11 @@ export function AppSidebar() {
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           className="w-full justify-between"
-                          isActive={pathname.startsWith("/products")}
+                          isActive={
+                            item.title === "Products"
+                              ? pathname.startsWith("/products")
+                              : pathname.startsWith("/orders")
+                          }
                         >
                           <div className="flex items-center">
                             <item.icon className="mr-2" />
