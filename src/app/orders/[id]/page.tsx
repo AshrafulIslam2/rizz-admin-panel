@@ -29,6 +29,7 @@ import {
   Printer,
 } from "lucide-react";
 import { ordersApi, ApiOrder } from "@/lib/api/orders";
+import shipmentApi, { DeliveryArea } from "@/lib/api/shipment";
 
 interface OrderDetailPageProps {
   params: Promise<{
@@ -57,34 +58,43 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
   });
   const [selectedStatus, setSelectedStatus] = useState("");
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [activeDeliveryAreas, setActiveDeliveryAreas] = useState<
+    DeliveryArea[]
+  >([]);
 
   useEffect(() => {
-    const fetchOrder = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await ordersApi.getOrderById(id);
-        setOrder(data);
+        // Fetch order and active delivery areas in parallel
+        const [orderData, deliveryAreas] = await Promise.all([
+          ordersApi.getOrderById(id),
+          shipmentApi.getActiveDeliveryAreas(),
+        ]);
+
+        setOrder(orderData);
+        setActiveDeliveryAreas(deliveryAreas);
         setCustomerForm({
-          name: data.shipping.fullName,
-          email: data.shipping.email,
-          phone: data.shipping.phone,
+          name: orderData.shipping.fullName,
+          email: orderData.shipping.email,
+          phone: orderData.shipping.phone,
         });
         setShippingForm({
-          address: data.shipping.address1,
-          deliveryArea: data.shipping.deliveryArea,
+          address: orderData.shipping.address1,
+          deliveryArea: orderData.shipping.deliveryArea,
         });
-        setSelectedStatus(data.status);
-        setOrderItems(data.items);
+        setSelectedStatus(orderData.status);
+        setOrderItems(orderData.items);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch order");
-        console.error("Error fetching order:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch data");
+        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrder();
+    fetchData();
   }, [id]);
 
   const statusOptions = [
@@ -203,16 +213,15 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
 
       // Check if delivery area has changed
       if (shippingForm.deliveryArea !== order.shipping.deliveryArea) {
-        // Set delivery charge based on delivery area
-        if (shippingForm.deliveryArea.toLowerCase().includes("inside dhaka")) {
-          deliveryCharge = 60; // Inside Dhaka charge
-        } else if (
-          shippingForm.deliveryArea.toLowerCase().includes("outside dhaka")
-        ) {
-          deliveryCharge = 120; // Outside Dhaka charge
-        } else {
-          deliveryCharge = 80; // Default charge for other areas
-        }
+        // Find the selected delivery area from active areas
+        const selectedArea = activeDeliveryAreas.find(
+          (area) => (area.areaName || area.name) === shippingForm.deliveryArea
+        );
+
+        // Use the charge from the delivery area if found, otherwise use default
+        deliveryCharge = selectedArea
+          ? selectedArea.charge
+          : order.deliveryCharge;
       }
 
       // Update shipping address with delivery area and charge
@@ -775,18 +784,37 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="deliveryArea">Delivery Area</Label>
-                  <Input
-                    id="deliveryArea"
+                  <Select
                     value={shippingForm.deliveryArea}
-                    onChange={(e) => {
+                    onValueChange={(value) => {
                       setShippingForm({
                         ...shippingForm,
-                        deliveryArea: e.target.value,
+                        deliveryArea: value,
                       });
                     }}
-                    placeholder="e.g. Inside Dhaka, Outside Dhaka"
                     disabled={loading}
-                  />
+                  >
+                    <SelectTrigger id="deliveryArea">
+                      <SelectValue placeholder="Select delivery area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeDeliveryAreas.length === 0 ? (
+                        <SelectItem value="no-areas-available" disabled>
+                          No active delivery areas
+                        </SelectItem>
+                      ) : (
+                        activeDeliveryAreas.map((area) => (
+                          <SelectItem
+                            key={area.id}
+                            value={area.areaName || area.name || ""}
+                          >
+                            {area.areaName || area.name} - ৳
+                            {area.charge.toFixed(2)}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex gap-2">
                   <Button

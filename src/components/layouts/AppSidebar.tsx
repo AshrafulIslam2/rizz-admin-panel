@@ -40,6 +40,9 @@ export function AppSidebar() {
   const [isOrdersOpen, setIsOrdersOpen] = useState(
     pathname.startsWith("/orders")
   );
+  const [isSettingsOpen, setIsSettingsOpen] = useState(
+    pathname.startsWith("/settings")
+  );
 
   const menuItems = [
     {
@@ -87,8 +90,22 @@ export function AppSidebar() {
     },
     {
       title: "Settings",
-      url: "/settings",
       icon: Settings,
+      isCollapsible: true,
+      isOpen: isSettingsOpen,
+      onToggle: () => setIsSettingsOpen(!isSettingsOpen),
+      subItems: [
+        {
+          title: "Landing Page Setting",
+          url: "/settings/landing-page",
+          icon: Home,
+        },
+        {
+          title: "Shipment Setting",
+          url: "/settings/shipment",
+          icon: Package,
+        },
+      ],
     },
   ];
 
@@ -112,7 +129,11 @@ export function AppSidebar() {
                           isActive={
                             item.title === "Products"
                               ? pathname.startsWith("/products")
-                              : pathname.startsWith("/orders")
+                              : item.title === "Orders"
+                              ? pathname.startsWith("/orders")
+                              : item.title === "Settings"
+                              ? pathname.startsWith("/settings")
+                              : false
                           }
                         >
                           <div className="flex items-center">
