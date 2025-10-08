@@ -294,6 +294,29 @@ export const ordersApi = {
     },
 
     /**
+     * Update order item quantity
+     */
+    async updateOrderItemQuantity(
+        itemId: number,
+        quantity: number
+    ): Promise<any> {
+        const response = await fetch(`http://localhost:3008/orders/items/${itemId}/quantity`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ quantity }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    /**
      * Delete an order
      */
     async deleteOrder(orderId: string): Promise<void> {

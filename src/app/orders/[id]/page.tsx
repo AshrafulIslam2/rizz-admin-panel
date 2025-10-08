@@ -260,21 +260,41 @@ export default function OrderDetailPage({ params }: OrderDetailPageProps) {
     setIsEditingShipping(false);
   };
 
-  const handleSaveItems = () => {
+  const handleSaveItems = async () => {
     if (!order) return;
-    const subtotal = orderItems.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
-    );
-    const total = subtotal + order.deliveryCharge;
 
-    setOrder({
-      ...order,
-      items: orderItems,
-      total,
-    });
-    setIsEditingItems(false);
-    // Add API call here to save order items
+    try {
+      setLoading(true);
+
+      // Update quantities for each modified item
+      const updatePromises = orderItems.map((item) => {
+        // Find the original item to check if quantity changed
+        const originalItem = order.items.find((orig) => orig.id === item.id);
+        if (originalItem && originalItem.quantity !== item.quantity) {
+          return ordersApi.updateOrderItemQuantity(item.id, item.quantity);
+        }
+        return Promise.resolve();
+      });
+
+      // Wait for all updates to complete
+      await Promise.all(updatePromises);
+
+      // Fetch the complete updated order details
+      const updatedOrder = await ordersApi.getOrderById(id);
+      setOrder(updatedOrder);
+      setOrderItems(updatedOrder.items);
+      setIsEditingItems(false);
+      alert("Order items updated successfully!");
+    } catch (err) {
+      console.error("Error updating order items:", err);
+      alert(
+        err instanceof Error ? err.message : "Failed to update order items"
+      );
+      // Revert to original items on error
+      setOrderItems(order.items);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelItems = () => {

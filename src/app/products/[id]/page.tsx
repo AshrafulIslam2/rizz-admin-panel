@@ -1,5 +1,6 @@
 import React from "react";
 import ProductInfo from "@/components/product-details/ProductInfo";
+import ProductImages from "@/components/product-details/ProductImages";
 import ProductColors from "@/components/product-details/ProductColors";
 import ProductFeatures from "@/components/product-details/ProductFeatures";
 import ProductSizes from "@/components/product-details/ProductSizes";
@@ -37,6 +38,7 @@ export default async function Page({ params }: { params: { id: string } }) {
         {JSON.stringify(product, null, 2)}
       </pre>
       <ProductInfo product={product} id={id} />
+      <ProductImages product={product} />
       <ProductColors product={product} id={id} />
       <ProductFeatures product={product} id={id} />
       <ProductSizes product={product} id={id} />
